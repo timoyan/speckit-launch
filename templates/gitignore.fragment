@@ -1,0 +1,22 @@
+# Spec Kit local extension state
+.specify/extensions/.cache/
+.specify/extensions/.backup/
+.specify/extensions/*/local-config.yml
+
+# Grok local credentials and session state
+.grok/auth.json
+.grok/mcp_credentials.json
+.grok/sessions/
+.grok/logs/
+.grok/memory/
+
+# Antigravity Agents local config
+.agents/mcp_config.json
+
+# Per-agent skill mounts (canonical copy is .agents/skills only)
+# Recreate after clone: node scripts/link-agent-skills.mjs
+.github/skills/
+.grok/skills/
+.cursor/skills/
+.claude/skills/
+.codex/skills/

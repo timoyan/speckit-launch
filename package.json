@@ -1,0 +1,30 @@
+{
+  "name": "speckit-launch",
+  "version": "1.0.0",
+  "description": "Launch GitHub Spec Kit projects with mainstream AI agent integrations (OS-agnostic)",
+  "type": "module",
+  "bin": {
+    "speckit-launch": "./bin/new-project.mjs"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "templates/",
+    "skill/",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "spec-kit",
+    "specify",
+    "spec-driven-development",
+    "agents"
+  ],
+  "scripts": {
+    "start": "node bin/new-project.mjs"
+  }
+}
