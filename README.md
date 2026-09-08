@@ -132,7 +132,7 @@ New projects pick up the new CLI automatically the next time you run `node bin/n
 5. In the smoke project, confirm `.specify/workflows/overlays/speckit/chained-sdd.yml` exists and `specify workflow resolve speckit` shows clarify / analyze / converge without the review gates
 6. Commit launcher/overlay changes if anything in steps 2–5 required an edit
 
-Already-created apps (fin-tank, drop-case, …) are upgraded **in that repo**:
+Already-created apps are upgraded **in that repo**:
 
 ```bash
 specify integration upgrade          # once per installed integration key

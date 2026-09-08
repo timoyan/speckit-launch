@@ -132,7 +132,7 @@ specify → clarify → plan → tasks → analyze → implement → converge
 5. 在測試專案確認 `.specify/workflows/overlays/speckit/chained-sdd.yml` 存在，且 `specify workflow resolve speckit` 顯示 clarify／analyze／converge、沒有 review gate
 6. 若步驟 2–5 需要改啟動器或 overlay，再 commit
 
-已經建好的 app（fin-tank、drop-case……）在 **那個 repo** 升級：
+已經建好的 app 在 **那個 repo** 升級：
 
 ```bash
 specify integration upgrade          # 每個已安裝的 integration key 跑一次
