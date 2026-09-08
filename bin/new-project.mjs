@@ -98,7 +98,9 @@ function usage() {
 Default: install mainstream integrations (${MAINSTREAM_INTEGRATIONS.join(", ")})
 Default parent for <name>: current working directory
 Default --script: ${defaultScript()} (win32=ps, else sh)
---only <integration>: install a single Spec Kit integration instead of all mainstream`);
+--only <integration>: install a single Spec Kit integration instead of all mainstream
+--version, -v: print version
+--help, -h: show usage`);
 }
 
 function die(msg, code = 1) {
@@ -115,11 +117,13 @@ function parseArgs(argv) {
     script: null,
     noGit: false,
     help: false,
+    version: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--help" || a === "-h") opts.help = true;
+    else if (a === "--version" || a === "-v") opts.version = true;
     else if (a === "--here") opts.here = true;
     else if (a === "--no-git") opts.noGit = true;
     else if (a === "--dir") {
@@ -619,6 +623,11 @@ function resolveProjectDir(opts) {
 
 function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.version) {
+    const pkg = JSON.parse(readText(join(STARTER_ROOT, "package.json")));
+    console.log(pkg.version);
+    process.exit(0);
+  }
   if (opts.help) {
     usage();
     process.exit(0);

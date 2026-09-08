@@ -28,6 +28,7 @@
   ],
   "scripts": {
     "start": "node bin/new-project.mjs",
+    "version": "node bin/new-project.mjs --version",
     "link": "npm link",
     "unlink": "npm unlink -g speckit-launch"
   }

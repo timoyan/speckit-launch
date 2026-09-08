@@ -87,6 +87,7 @@ npm run unlink        # equivalent to npm unlink -g speckit-launch
 | `--only <integration>` | Install only this Spec Kit integration (skip the mainstream set) |
 | `--script sh\|ps\|py` | Helper script type (default: `ps` on Windows, `sh` elsewhere) |
 | `--no-git` | Skip `git init` |
+| `--version`, `-v` | Print version |
 | `--help` | Show usage |
 
 Named projects are created under the **current working directory** unless `--dir` is set.

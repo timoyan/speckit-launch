@@ -87,6 +87,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 | `--only <integration>` | 只裝這一個 Spec Kit 整合（略過主流組合） |
 | `--script sh\|ps\|py` | helper script 類型（預設：Windows 為 `ps`，其他為 `sh`） |
 | `--no-git` | 略過 `git init` |
+| `--version`, `-v` | 顯示版本號 |
 | `--help` | 顯示用法 |
 
 具名專案建在 **目前工作目錄** 底下，除非有設 `--dir`。
