@@ -3,6 +3,10 @@
 .specify/extensions/.backup/
 .specify/extensions/*/local-config.yml
 
+# Spec Kit workflow runs and execution state
+.specify/workflows/runs/
+
+
 # Grok local credentials and session state
 .grok/auth.json
 .grok/mcp_credentials.json
