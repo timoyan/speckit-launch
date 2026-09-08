@@ -102,7 +102,7 @@ specify → clarify → plan → tasks → analyze → implement → converge
 | Step | Default behavior |
 |------|------------------|
 | After **specify** | Always run **clarify** (do not jump to plan) |
-| After **clarify** | **Pause** if questions were asked, `[NEEDS CLARIFICATION]` remains, the spec checklist still fails, or Outstanding / high-impact items remain. Otherwise **continue immediately** to plan |
+| After **clarify** | **Pause** only if `[NEEDS CLARIFICATION]` remains, the spec checklist still fails, or Outstanding / high-impact items remain. Answered questions already in the spec do **not** need a second confirmation — **continue immediately** to plan |
 | After **plan** | Always run **tasks** |
 | After **tasks** | Always run **analyze** |
 | After **analyze** | **Pause** on any CRITICAL / HIGH / MEDIUM finding. Zero findings or only LOW → **continue immediately** to implement |

@@ -20,14 +20,15 @@ A **single** slash command (`/speckit-plan` only, `/speckit-analyze` only, …) 
 
 ### After `/speckit-clarify`
 
-**Pause and wait for the user** if any of these are true:
+**Pause and wait for the user** if any of these are still true after clarify finishes:
 
-- You asked clarification questions this session (even if already answered) **and** the user has not said to continue
 - `[NEEDS CLARIFICATION]` remains in `spec.md`
 - Spec quality checklist still has failing items
 - Coverage still has Outstanding / high-impact Deferred items
 
 When pausing: list what is unresolved in a short bullet list and ask whether to continue to `/speckit-plan` (or re-clarify). Do **not** start plan until they confirm.
+
+Questions that were asked **and answered** this session, and already written into the spec, do **not** require a second confirmation.
 
 **Continue immediately to `/speckit-plan`** if clarify reported no critical ambiguities, the checklist passes, and nothing Outstanding remains. Say one line that you are continuing, then run plan.
 

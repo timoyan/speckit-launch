@@ -102,7 +102,7 @@ specify → clarify → plan → tasks → analyze → implement → converge
 | 步驟 | 預設行為 |
 |------|----------|
 | **specify** 之後 | 一定跑 **clarify**（不要跳去 plan） |
-| **clarify** 之後 | 若問過問題、`[NEEDS CLARIFICATION]` 還在、spec checklist 未過、或仍有 Outstanding／高影響項 → **暫停**。否則 **立刻繼續** plan |
+| **clarify** 之後 | 僅當 `[NEEDS CLARIFICATION]` 還在、spec checklist 未過、或仍有 Outstanding／高影響項 → **暫停**。已經答完並寫進 spec 的題目不必再確認 → **立刻繼續** plan |
 | **plan** 之後 | 一定跑 **tasks** |
 | **tasks** 之後 | 一定跑 **analyze** |
 | **analyze** 之後 | 任何 CRITICAL／HIGH／MEDIUM 發現 → **暫停**。零發現或只有 LOW → **立刻繼續** implement |
