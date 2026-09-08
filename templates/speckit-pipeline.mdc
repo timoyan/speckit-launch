@@ -46,3 +46,16 @@ Analyze is read-only. Do not edit files from analyze itself. In a chained run, d
 - `converge` → if tasks were appended, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
 
 Implementation details after a green analyze stay autonomous. Do not add extra “does this plan look OK?” gates unless clarify/analyze actually flagged issues.
+
+## Model & capability tier routing
+
+- **Interactive chat vs CLI automation**: In interactive chat sessions (e.g. Cursor, Claude Code, Copilot), the active LLM cannot swap itself mid-session. Use the recommendations below to switch models manually in the UI or when configuring subagents:
+  - `specify` / `clarify`: High reasoning / Thinking (e.g. Claude 3.7 Sonnet (Thinking), o3-mini)
+  - `plan`: Architectural reasoning (e.g. Claude 3.7 Sonnet, GPT-4o)
+  - `analyze`: Large context / deep verification (e.g. Gemini 1.5/2.0 Pro)
+  - `tasks` / `implement` / `converge`: Fast, high-throughput coding (e.g. Claude 3.5 Sonnet, GPT-4o, DeepSeek-V3)
+- **Single-agent setup**: Default to running all stages with your active flagship model.
+- **Automated CLI switching**: To automate multi-model execution, specify `model:` and `integration:` in `.specify/workflows/overlays/speckit/chained-sdd.yml` and run `specify workflow run speckit`.
+
+
+

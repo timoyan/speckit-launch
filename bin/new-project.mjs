@@ -166,6 +166,27 @@ function which(cmd) {
   return r.status === 0 && (r.stdout || "").trim().length > 0;
 }
 
+const AGENT_CLI_DETECTION_TARGETS = [
+  { name: "Claude Code", bin: "claude" },
+  { name: "Gemini CLI", bin: "gemini" },
+  { name: "Cursor CLI", bin: "cursor-agent", fallback: "cursor" },
+  { name: "GitHub Copilot CLI", bin: "copilot", fallback: "github-copilot-cli" },
+  { name: "Grok Build", bin: "grok" },
+  { name: "Codex CLI", bin: "codex" },
+  { name: "Antigravity", bin: "agy", fallback: "antigravity" },
+];
+
+function detectAvailableAgentTools() {
+  const found = [];
+  for (const agent of AGENT_CLI_DETECTION_TARGETS) {
+    if (which(agent.bin) || (agent.fallback && which(agent.fallback))) {
+      found.push(agent.name);
+    }
+  }
+  return found;
+}
+
+
 function run(cmd, args, cwd) {
   console.log(`> ${cmd} ${args.join(" ")}`);
   let r = spawnSync(cmd, args, {
@@ -628,12 +649,36 @@ function main() {
   mergeGitignore(projectRoot);
   mergeGitattributes(projectRoot);
 
+  const detectedAgents = detectAvailableAgentTools();
+  let agentTip = "";
+  if (detectedAgents.length > 1) {
+    agentTip = `
+Detected agent CLIs on PATH:
+  ${detectedAgents.join(", ")}
+  Tip: Multi-agent environment detected! You can configure per-stage model / agent routing in:
+  - .agents/AGENTS.md (recommended capability tiers for interactive chats)
+  - .specify/workflows/overlays/speckit/chained-sdd.yml (per-step CLI dispatch)
+`;
+  } else if (detectedAgents.length === 1) {
+    agentTip = `
+Detected agent CLI on PATH:
+  ${detectedAgents[0]}
+  Tip: Single-agent workflow. All stages default cleanly to your active agent.
+`;
+  } else {
+    agentTip = `
+Detected agent CLIs on PATH:
+  None found on PATH (IDE-based agents like Cursor or VS Code Copilot can be used directly).
+`;
+  }
+
   console.log(`
 Done. Spec Kit project ready at:
   ${projectRoot}
 
 Installed integrations:
   ${keys.join(", ")}
+${agentTip.trimEnd()}
 
 Chained Spec Kit run (pause after clarify/analyze only when issues remain):
   specify → clarify → plan → tasks → analyze → implement → converge

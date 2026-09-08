@@ -6,34 +6,112 @@
 # Official base: specify → review-spec → plan → review-plan → tasks → implement
 # After this overlay: specify → clarify → plan → tasks → analyze → implement → converge
 # Agent pause rules stay in AGENTS.md / speckit-pipeline.mdc (not YAML gates).
+#
+# ==============================================================================
+# Model & Integration Policy (模型與 Agent 配置原則):
+# 1. 預設行為（Agent 動態決定）：
+#    各步驟預設不寫死 `model`，執行當下由 AI Agent 依據 .agents/AGENTS.md
+#    所列的能力分級，動態選擇或輸入最適模型（或使用用戶當前 Session 的主力模型）。
+# 2. 用戶手動指定（User Override）：
+#    若用戶需要固定特定模型，可直接在此檔案中解除對應步驟的註解並指定 `model:` 或 `integration:`。
+# ==============================================================================
 id: "chained-sdd"
 extends: "speckit"
 priority: 10
 enabled: true
 edits:
+  # ----------------------------------------------------------------------------
+  # Step 1: specify (建立規格 baseline)
+  # 預設繼承自 base；若要固定指定模型，解除下方 replace 註解：
+  # ----------------------------------------------------------------------------
+  # - replace: specify
+  #   step:
+  #     id: specify
+  #     command: speckit.specify
+  #     integration: "{{ inputs.integration }}"
+  #     model: "claude-3-7-sonnet" # 建議：深度推理 / Thinking 模型
+  #     input:
+  #       args: "{{ inputs.spec }}"
+
+  # ----------------------------------------------------------------------------
+  # Step 2: clarify (釐清模糊處與邊界)
+  # ----------------------------------------------------------------------------
   - insert_after: specify
     step:
       id: clarify
       command: speckit.clarify
       integration: "{{ inputs.integration }}"
+      # model: "claude-3-7-sonnet" # 建議：深度推理 / Thinking 模型（未指定時由 Agent 動態決定）
       input:
         args: "{{ inputs.spec }}"
 
+  # ----------------------------------------------------------------------------
+  # 移除官方硬性 review gates (改由 AGENTS.md / speckit-pipeline.mdc 智慧暫停)
+  # ----------------------------------------------------------------------------
   - remove: review-spec
   - remove: review-plan
 
+  # ----------------------------------------------------------------------------
+  # Step 3: plan (架構設計與相依規劃)
+  # 預設繼承自 base；若要固定指定模型，解除下方 replace 註解：
+  # ----------------------------------------------------------------------------
+  # - replace: plan
+  #   step:
+  #     id: plan
+  #     command: speckit.plan
+  #     integration: "{{ inputs.integration }}"
+  #     model: "claude-3-7-sonnet" # 建議：系統架構推理模型
+  #     input:
+  #       args: "{{ inputs.spec }}"
+
+  # ----------------------------------------------------------------------------
+  # Step 4: tasks (任務拆解)
+  # 預設繼承自 base；若要固定指定模型，解除下方 replace 註解：
+  # ----------------------------------------------------------------------------
+  # - replace: tasks
+  #   step:
+  #     id: tasks
+  #     command: speckit.tasks
+  #     integration: "{{ inputs.integration }}"
+  #     model: "claude-3-7-sonnet" # 建議：結構化拆解模型
+  #     input:
+  #       args: "{{ inputs.spec }}"
+
+  # ----------------------------------------------------------------------------
+  # Step 5: analyze (全專案一致性與架構稽核)
+  # ----------------------------------------------------------------------------
   - insert_after: tasks
     step:
       id: analyze
       command: speckit.analyze
       integration: "{{ inputs.integration }}"
+      # model: "gemini-2.5-pro" # 建議：大 Context 視窗模型（未指定時由 Agent 動態決定）
       input:
         args: "{{ inputs.spec }}"
 
+  # ----------------------------------------------------------------------------
+  # Step 6: implement (程式碼循序實作)
+  # 預設繼承自 base；若要固定指定模型，解除下方 replace 註解：
+  # ----------------------------------------------------------------------------
+  # - replace: implement
+  #   step:
+  #     id: implement
+  #     command: speckit.implement
+  #     integration: "{{ inputs.integration }}"
+  #     model: "claude-3-5-sonnet" # 建議：高吞吐 / 快速 Coding 模型
+  #     input:
+  #       args: "{{ inputs.spec }}"
+
+  # ----------------------------------------------------------------------------
+  # Step 7: converge (收斂檢查與補全任務)
+  # ----------------------------------------------------------------------------
   - insert_after: implement
     step:
       id: converge
       command: speckit.converge
       integration: "{{ inputs.integration }}"
+      # model: "claude-3-5-sonnet" # 建議：高吞吐 / 快速 Coding 模型（未指定時由 Agent 動態決定）
       input:
         args: "{{ inputs.spec }}"
+
+

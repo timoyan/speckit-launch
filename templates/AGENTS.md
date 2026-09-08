@@ -50,6 +50,25 @@ Analyze is read-only. Do not edit files from analyze itself. In a chained run, d
 
 Do not add extra “does this plan look OK?” gates unless clarify/analyze actually flagged issues.
 
+### Model & capability tier routing
+
+Match the model tier to each stage for optimal cost, speed, and accuracy:
+
+| Stage | Capability Tier | Recommended Examples | Primary Purpose |
+|-------|-----------------|----------------------|-----------------|
+| `specify` / `clarify` | High reasoning / Thinking (CoT) | Claude 3.7 Sonnet (Thinking), o3-mini, Gemini 2.5 Pro | Uncovers hidden constraints, edge cases, and ambiguities early |
+| `plan` | Architectural reasoning | Claude 3.7 Sonnet, GPT-4o | Solid system boundaries and dependency planning |
+| `tasks` | Structured decomposition | Flagship model | Generates clean, actionable task graphs |
+| `analyze` | Large context / Deep verification | Gemini 1.5/2.0 Pro, Claude 3.7 Sonnet | Whole-repo consistency and spec vs code audit without context loss |
+| `implement` / `converge` | Fast, high-throughput coding | Claude 3.5/3.7 Sonnet, GPT-4o, DeepSeek-V3 | Rapid code writing, test loops, and convergence passes |
+
+- **Interactive chat vs CLI automation**: In an interactive chat session (e.g. Cursor, Claude Code, Copilot), the active model cannot swap its own underlying LLM mid-session; the table above serves as guidance for the user (or subagent orchestrators) to select appropriate models at each stage.
+- **Automated CLI workflow**: To automate cross-model switching across stages, run `specify workflow run speckit` with explicit `model:` and `integration:` pins in `.specify/workflows/overlays/speckit/chained-sdd.yml`.
+- **User override priority**: If the user manually edits `.specify/workflows/overlays/speckit/chained-sdd.yml` to specify `model: "..."` or `integration: "..."`, that configuration takes strict precedence.
+- **Single-agent environments**: If only using one model or tool, run all stages with your primary/flagship model.
+
+
+
 ### One-time project setup
 
 1. Establish principles: `/speckit-constitution` (this project's principles — do not copy another repo)

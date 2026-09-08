@@ -117,6 +117,29 @@ specify → clarify → plan → tasks → analyze → implement → converge
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：拿掉兩道 review gate，插入 clarify／analyze／converge。官方 `workflow.yml` 仍可單獨升級
 - `chained-sdd` preset — 把 **Autonomy & Spec Kit pipeline** 原則 append 到 `constitution-template`（本地 `--dev` 安裝；不是 catalog 發行）。尚未填寫的 `constitution.md` 同樣種入
 
+### 各階段模型與 Agent 分工 (Model & Agent Routing)
+
+Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解耦，完全支援依任務屬性分工：
+
+| 階段 | 建議能力等級 | 推薦模型範例 | 主要目標 |
+|------|-------------|--------------|----------|
+| `specify` / `clarify` | 深度推理 / Thinking (CoT) | Claude 3.7 Sonnet (Thinking)、o3-mini、Gemini 2.5 Pro | 提早釐清隱性限制、邊界條件與歧義 |
+| `plan` | 系統架構推理 | Claude 3.7 Sonnet、GPT-4o | 建立清晰系統邊界與相依性規劃 |
+| `tasks` | 結構化任務拆解 | 主力旗艦模型 | 產出結構清晰、可逐條驗收的任務圖 |
+| `analyze` | 大 Context / 全域稽核 | Gemini 1.5/2.0 Pro、Claude 3.7 Sonnet | 比對全專案 codebase 與規格，無 Context 截斷 |
+| `implement` / `converge` | 敏捷、高產出編碼 | Claude 3.5/3.7 Sonnet、GPT-4o、DeepSeek-V3 | 高速撰寫程式碼、快速跑測試與迭代收斂 |
+
+- **執行時動態決定**：預設不硬編碼模型，由當下執行的 Agent / CLI 依據上方能力等級動態輸入或選用最適模型。
+- **用戶手動覆寫**：若用戶希望固定特定步驟的模型，可隨時在專案的 `.specify/workflows/overlays/speckit/chained-sdd.yml`（涵蓋全部 7 個步驟）解除註解並指定 `model:` 或 `integration:`，手動配置具最高優先級。
+- **單 Agent vs 多 Agent**：啟動器初始化時會自動探測 PATH 上的 Agent CLIs。單 Agent 環境自動平滑回退，多 Agent 環境提示進階分工路徑。
+
+> [!IMPORTANT]
+> **關鍵結論：Agent 在執行過程中不會「自動」跨模型切換**
+> - **在 IDE / 聊天視窗中（如 Cursor、Claude Code、Copilot）**：對話模型是由你在介面下拉選單決定的，當前運行的模型無法自我抽換或在背後切換底層 Model；`AGENTS.md` 的表格是**給開發者的切換指引**（提示你在不同階段手動切換最適模型）。
+> - **唯一能自動切換模型的方式：使用 CLI 工作流**：只有當你透過終端機執行 `specify workflow run speckit` 時，Spec Kit 的排程引擎才會在背景依照 `.specify/workflows/overlays/speckit/chained-sdd.yml` 裡**明確寫出的 `model:` 與 `integration:`** 自動依步驟調用不同 CLI 與模型。若 YAML 裡未指定，則一律使用該 CLI 的預設模型。
+
+
+
 產品特有規則（領域模型、UI kit、changelog 格式……）不放進這個啟動器。那些用新專案的 `/speckit-constitution` 寫。
 
 ## 升級 `specify` CLI 之後

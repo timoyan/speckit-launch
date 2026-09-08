@@ -117,6 +117,29 @@ Overlays written into the new project:
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: drop the two review gates, insert clarify / analyze / converge. Official `workflow.yml` stays upgradable.
 - `chained-sdd` preset — appends the **Autonomy & Spec Kit pipeline** principle onto `constitution-template` (local `--dev` install; not a catalog release). Unfilled `constitution.md` is seeded the same way.
 
+### Model & Agent Routing per Stage
+
+Because Spec Kit decouples stages via disk artifacts in `specs/<feature>/`, you can route stages across models and agents based on strengths:
+
+| Stage | Capability Tier | Recommended Examples | Primary Purpose |
+|-------|-----------------|----------------------|-----------------|
+| `specify` / `clarify` | High reasoning / Thinking (CoT) | Claude 3.7 Sonnet (Thinking), o3-mini, Gemini 2.5 Pro | Uncovers hidden constraints, edge cases, and ambiguities early |
+| `plan` | Architectural reasoning | Claude 3.7 Sonnet, GPT-4o | Solid system boundaries and dependency planning |
+| `tasks` | Structured decomposition | Flagship model | Generates clean, actionable task graphs |
+| `analyze` | Large context / Deep verification | Gemini 1.5/2.0 Pro, Claude 3.7 Sonnet | Whole-repo consistency and spec vs code audit without context truncation |
+| `implement` / `converge` | Fast, high-throughput coding | Claude 3.5/3.7 Sonnet, GPT-4o, DeepSeek-V3 | Rapid code writing, test loops, and convergence passes |
+
+- **Dynamic Agent Model Selection**: Models are not hardcoded by default; the executing agent or CLI dynamically inputs/selects the best model according to the capability tier table above.
+- **User Manual Override**: If you want to pin specific models, uncomment the respective steps in `.specify/workflows/overlays/speckit/chained-sdd.yml` (covers all 7 steps) and specify `model:` or `integration:`. User edits take strict precedence.
+- **Single vs Multi-agent**: Bootstrap automatically detects agent CLIs on PATH, offering zero-config fallback for single-agent setups and routing tips for multi-agent environments.
+
+> [!IMPORTANT]
+> **Key Conclusion: Agents do NOT automatically switch models mid-flow**
+> - **In IDE / chat sessions (e.g. Cursor, Claude Code, Copilot)**: The active model is chosen by you in the UI or CLI launch parameters. An active LLM cannot swap its own underlying engine mid-session. The capability table in `AGENTS.md` serves as **human guidance** (reminding you when to switch models manually in the UI).
+> - **The ONLY way to automate cross-model switching: Spec Kit CLI Workflows**: Running `specify workflow run speckit` lets the Spec Kit orchestrator dispatch background steps according to the `model:` and `integration:` explicitly defined in `.specify/workflows/overlays/speckit/chained-sdd.yml`. If unspecified in the YAML, steps use the respective integration's default model.
+
+
+
 Product-specific rules (domain model, UI kit, changelog format, …) stay out of this launcher. Write those with `/speckit-constitution` for the new project.
 
 ## After upgrading the `specify` CLI
