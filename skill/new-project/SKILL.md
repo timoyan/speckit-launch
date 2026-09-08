@@ -54,8 +54,10 @@ Ask for `<name>` if missing (kebab-case or simple identifier). Confirm the targe
 Tell the user:
 
 1. Open the project in any of the installed agents
-2. Run `/speckit-constitution` for **this** project's principles (do not copy another project's constitution)
-3. Then `/speckit-specify` → plan → tasks → implement → converge
+2. Run `/speckit-constitution` for **this** project's principles (do not copy another project's constitution; keep the seeded pipeline principle)
+3. Then `/speckit-specify` — that starts the chained run:
+   `specify → clarify → plan → tasks → analyze → implement → converge`
+   Pause after clarify/analyze only when issues remain; do not add extra “does this plan look OK?” gates.
 
 ## Do not
 

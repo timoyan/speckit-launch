@@ -1,6 +1,6 @@
 {
   "name": "speckit-launch",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Launch GitHub Spec Kit projects with mainstream AI agent integrations (OS-agnostic)",
   "type": "module",
   "bin": {

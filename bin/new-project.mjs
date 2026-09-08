@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Bootstrap a new Spec Kit project with mainstream AI agent integrations
- * and cross-agent skill mounts (canonical copy in .agents/skills).
+ * Bootstrap a new Spec Kit project with mainstream AI agent integrations,
+ * cross-agent skill mounts (canonical copy in .agents/skills), and the
+ * chained Spec Kit pipeline (specify → clarify → plan → tasks → analyze →
+ * implement → converge; pause after clarify/analyze only when issues remain).
  *
  * Usage:
  *   node bin/new-project.mjs <name>              # create ./<name> under cwd
@@ -307,6 +309,27 @@ function mergeGitignore(projectRoot) {
   console.log("merged Spec Kit / skill-mount rules into .gitignore");
 }
 
+const PIPELINE_MARKER = "<!-- speckit-launch:pipeline -->";
+const PIPELINE_NEEDLE = "specify → clarify → plan → tasks → analyze";
+
+const AGENT_DOC_CANDIDATES = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  ".github/copilot-instructions.md",
+];
+
+const AGENT_PIPELINE_POINTER = `## Spec Kit chained pipeline
+
+Canonical rules: \`.agents/AGENTS.md\`. Full run:
+
+\`\`\`
+specify → clarify → plan → tasks → analyze → implement → converge
+\`\`\`
+
+Pause after clarify/analyze only when issues remain. A single slash command does not start the chain.
+`;
+
 function writeAgentsFiles(projectRoot) {
   const agentsDir = join(projectRoot, ".agents");
   mkdirSync(agentsDir, { recursive: true });
@@ -318,9 +341,136 @@ function writeAgentsFiles(projectRoot) {
   }
 
   const agentsMd = join(agentsDir, "AGENTS.md");
+  const template = readFileSync(join(TEMPLATES, "AGENTS.md"), "utf8");
   if (!existsSync(agentsMd)) {
-    copyFileSync(join(TEMPLATES, "AGENTS.md"), agentsMd);
+    writeFileSync(agentsMd, template, "utf8");
     console.log("wrote .agents/AGENTS.md");
+    return;
+  }
+
+  const existing = readFileSync(agentsMd, "utf8");
+  if (existing.includes(PIPELINE_MARKER) || existing.includes(PIPELINE_NEEDLE)) {
+    console.log(".agents/AGENTS.md already has Spec Kit pipeline; skipping");
+    return;
+  }
+
+  const markerAt = template.indexOf(PIPELINE_MARKER);
+  const insert = "\n\n" + (markerAt >= 0 ? template.slice(markerAt) : template);
+  writeFileSync(agentsMd, existing.trimEnd() + insert, "utf8");
+  console.log("merged Spec Kit pipeline into .agents/AGENTS.md");
+}
+
+function writeCursorPipelineRule(projectRoot) {
+  const destDir = join(projectRoot, ".cursor", "rules");
+  mkdirSync(destDir, { recursive: true });
+  const dest = join(destDir, "speckit-pipeline.mdc");
+  copyFileSync(join(TEMPLATES, "speckit-pipeline.mdc"), dest);
+  console.log("wrote .cursor/rules/speckit-pipeline.mdc");
+}
+
+function overlaySpeckitWorkflow(projectRoot) {
+  if (!existsSync(join(projectRoot, ".specify"))) {
+    console.warn("warn: .specify/ missing; skipped workflow overlay");
+    return;
+  }
+
+  const overlaySrc = join(TEMPLATES, "speckit-overlay.yml");
+  const destDir = join(projectRoot, ".specify", "workflows", "overlays", "speckit");
+  const dest = join(destDir, "chained-sdd.yml");
+  mkdirSync(destDir, { recursive: true });
+
+  // Spec Kit 1.0+ composes overlays on top of the bundled workflow.yml.
+  // Do not overwrite the installed workflow — `specify workflow update`
+  // can refresh the base while this overlay keeps the chained SDD steps.
+  if (existsSync(dest)) {
+    copyFileSync(overlaySrc, dest);
+    console.log("refreshed .specify/workflows/overlays/speckit/chained-sdd.yml");
+    return;
+  }
+
+  let r = spawnSync("specify", ["workflow", "overlay", "add", overlaySrc, "--priority", "10"], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    shell: false,
+    env: process.env,
+  });
+  if (r.error && r.error.code === "ENOENT" && process.platform === "win32") {
+    r = spawnSync("specify", ["workflow", "overlay", "add", overlaySrc, "--priority", "10"], {
+      cwd: projectRoot,
+      encoding: "utf8",
+      shell: true,
+      env: process.env,
+    });
+  }
+  if (r.status === 0) {
+    console.log("installed speckit workflow overlay chained-sdd (clarify/analyze/converge; no fixed review gates)");
+    return;
+  }
+
+  copyFileSync(overlaySrc, dest);
+  const detail = (r.stderr || r.stdout || r.error?.message || "overlay add failed").toString().trim();
+  console.log(`wrote ${dest} (specify workflow overlay add skipped: ${detail.split("\n")[0]})`);
+}
+
+function looksLikeUnfilledConstitution(text) {
+  return (
+    text.includes("[PROJECT_NAME]") ||
+    text.includes("[PRINCIPLE_1_NAME]") ||
+    text.includes("[PRINCIPLE_1_DESCRIPTION]")
+  );
+}
+
+function insertConstitutionPipeline(text, fragment) {
+  const block = fragment.trimEnd() + "\n";
+  const anchors = ["\n## [SECTION_2_NAME]", "\n## Governance", "\n## [SECTION_3_NAME]"];
+  for (const anchor of anchors) {
+    const i = text.indexOf(anchor);
+    if (i >= 0) {
+      return text.slice(0, i) + "\n" + block + text.slice(i);
+    }
+  }
+  return text.trimEnd() + "\n\n" + block;
+}
+
+function seedConstitutionPipeline(projectRoot) {
+  const fragmentPath = join(TEMPLATES, "constitution-pipeline.md");
+  const fragment = readFileSync(fragmentPath, "utf8");
+  const needle = "Autonomy & Spec Kit pipeline";
+
+  const targets = [
+    join(projectRoot, ".specify", "templates", "constitution-template.md"),
+    join(projectRoot, ".specify", "memory", "constitution.md"),
+  ];
+
+  for (const dest of targets) {
+    if (!existsSync(dest)) continue;
+    const existing = readFileSync(dest, "utf8");
+    if (existing.includes(needle)) {
+      console.log(`${dest.includes("templates") ? "constitution-template.md" : "constitution.md"} already has pipeline principle; skipping`);
+      continue;
+    }
+    const rel = dest.replace(/\\/g, "/");
+    const isMemory = rel.endsWith("/memory/constitution.md");
+    if (isMemory && !looksLikeUnfilledConstitution(existing)) {
+      console.log("constitution.md is already filled; not injecting pipeline principle (edit via /speckit-constitution)");
+      continue;
+    }
+    writeFileSync(dest, insertConstitutionPipeline(existing, fragment), "utf8");
+    console.log(`seeded Autonomy & Spec Kit pipeline into ${dest.includes("templates") ? "constitution-template.md" : "constitution.md"}`);
+  }
+}
+
+function mergePipelinePointerIntoAgentDocs(projectRoot) {
+  for (const rel of AGENT_DOC_CANDIDATES) {
+    const dest = join(projectRoot, ...rel.split("/"));
+    if (!existsSync(dest)) continue;
+    const existing = readFileSync(dest, "utf8");
+    if (existing.includes(PIPELINE_NEEDLE) || existing.includes("Spec Kit chained pipeline")) {
+      continue;
+    }
+    const sep = existing.endsWith("\n") ? "\n" : "\n\n";
+    writeFileSync(dest, existing.trimEnd() + sep + AGENT_PIPELINE_POINTER, "utf8");
+    console.log(`merged Spec Kit pipeline pointer into ${rel}`);
   }
 }
 
@@ -384,6 +534,10 @@ function main() {
   installIntegrations(projectRoot, keys, opts.script);
   moveSpeckitSkills(projectRoot);
   writeAgentsFiles(projectRoot);
+  writeCursorPipelineRule(projectRoot);
+  overlaySpeckitWorkflow(projectRoot);
+  seedConstitutionPipeline(projectRoot);
+  mergePipelinePointerIntoAgentDocs(projectRoot);
   copyLinkScript(projectRoot);
   runLinkScript(projectRoot);
   mergeGitignore(projectRoot);
@@ -395,10 +549,13 @@ Done. Spec Kit project ready at:
 Installed integrations:
   ${keys.join(", ")}
 
+Chained Spec Kit run (pause after clarify/analyze only when issues remain):
+  specify → clarify → plan → tasks → analyze → implement → converge
+
 Next steps:
   1. Open the project in any of the installed coding agents
-  2. Run /speckit-constitution  (set THIS project's principles)
-  3. Run /speckit-specify       (describe what to build)
+  2. Run /speckit-constitution  (set THIS project's principles; keep the pipeline principle)
+  3. Run /speckit-specify       (starts the chained run above)
 
 After clone on another machine:
   node scripts/link-agent-skills.mjs

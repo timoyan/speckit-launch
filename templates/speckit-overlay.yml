@@ -1,0 +1,39 @@
+# Project overlay for the bundled `speckit` workflow (Spec Kit 1.0+).
+# Lives at .specify/workflows/overlays/speckit/chained-sdd.yml so
+# `specify workflow update speckit` can refresh the base YAML without
+# wiping the chained SDD steps.
+#
+# Official base: specify → review-spec → plan → review-plan → tasks → implement
+# After this overlay: specify → clarify → plan → tasks → analyze → implement → converge
+# Agent pause rules stay in AGENTS.md / speckit-pipeline.mdc (not YAML gates).
+id: "chained-sdd"
+extends: "speckit"
+priority: 10
+enabled: true
+edits:
+  - insert_after: specify
+    step:
+      id: clarify
+      command: speckit.clarify
+      integration: "{{ inputs.integration }}"
+      input:
+        args: "{{ inputs.spec }}"
+
+  - remove: review-spec
+  - remove: review-plan
+
+  - insert_after: tasks
+    step:
+      id: analyze
+      command: speckit.analyze
+      integration: "{{ inputs.integration }}"
+      input:
+        args: "{{ inputs.spec }}"
+
+  - insert_after: implement
+    step:
+      id: converge
+      command: speckit.converge
+      integration: "{{ inputs.integration }}"
+      input:
+        args: "{{ inputs.spec }}"
