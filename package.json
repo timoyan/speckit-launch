@@ -27,6 +27,8 @@
     "agents"
   ],
   "scripts": {
-    "start": "node bin/new-project.mjs"
+    "start": "node bin/new-project.mjs",
+    "link": "npm link",
+    "unlink": "npm unlink -g speckit-launch"
   }
 }
