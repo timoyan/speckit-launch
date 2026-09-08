@@ -1,3 +1,5 @@
+## Autonomy & Spec Kit pipeline
+
 ### Autonomy & Spec Kit pipeline (NON-NEGOTIABLE)
 - **Day-to-day implementation is autonomous**: file reads/writes, tests, type checks, and refactors MUST proceed without interrupting for minor naming or style preferences.
 - **Spec Kit chained run**: new features MUST use `specify → clarify → plan → tasks → analyze → implement → converge`. After **clarify**, pause for the user if questions were asked this session and they have not said to continue, if `[NEEDS CLARIFICATION]` remains, if the spec quality checklist still fails, or if Outstanding / high-impact Deferred items remain; otherwise continue immediately to plan. After **analyze**, pause for the user if any CRITICAL / HIGH / MEDIUM finding exists; zero findings or only LOW → continue immediately to implement. Do not add extra “does this plan look OK?” gates. `/speckit-checklist` is optional and not part of the default chain. Details: [`.agents/AGENTS.md`](../../.agents/AGENTS.md), [`.cursor/rules/speckit-pipeline.mdc`](../../.cursor/rules/speckit-pipeline.mdc).

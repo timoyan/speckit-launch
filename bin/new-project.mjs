@@ -368,6 +368,28 @@ function writeCursorPipelineRule(projectRoot) {
   console.log("wrote .cursor/rules/speckit-pipeline.mdc");
 }
 
+function specifyCli(args, cwd) {
+  let r = spawnSync("specify", args, {
+    cwd,
+    encoding: "utf8",
+    shell: false,
+    env: process.env,
+  });
+  if (r.error && r.error.code === "ENOENT" && process.platform === "win32") {
+    r = spawnSync("specify", args, {
+      cwd,
+      encoding: "utf8",
+      shell: true,
+      env: process.env,
+    });
+  }
+  return r;
+}
+
+function specifyCliOutput(r) {
+  return `${r.stdout || ""}\n${r.stderr || ""}\n${r.error?.message || ""}`.trim();
+}
+
 function overlaySpeckitWorkflow(projectRoot) {
   if (!existsSync(join(projectRoot, ".specify"))) {
     console.warn("warn: .specify/ missing; skipped workflow overlay");
@@ -388,28 +410,40 @@ function overlaySpeckitWorkflow(projectRoot) {
     return;
   }
 
-  let r = spawnSync("specify", ["workflow", "overlay", "add", overlaySrc, "--priority", "10"], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    shell: false,
-    env: process.env,
-  });
-  if (r.error && r.error.code === "ENOENT" && process.platform === "win32") {
-    r = spawnSync("specify", ["workflow", "overlay", "add", overlaySrc, "--priority", "10"], {
-      cwd: projectRoot,
-      encoding: "utf8",
-      shell: true,
-      env: process.env,
-    });
-  }
+  const r = specifyCli(["workflow", "overlay", "add", overlaySrc, "--priority", "10"], projectRoot);
   if (r.status === 0) {
     console.log("installed speckit workflow overlay chained-sdd (clarify/analyze/converge; no fixed review gates)");
     return;
   }
 
   copyFileSync(overlaySrc, dest);
-  const detail = (r.stderr || r.stdout || r.error?.message || "overlay add failed").toString().trim();
-  console.log(`wrote ${dest} (specify workflow overlay add skipped: ${detail.split("\n")[0]})`);
+  const detail = specifyCliOutput(r).split("\n")[0] || "overlay add failed";
+  console.log(`wrote ${dest} (specify workflow overlay add skipped: ${detail})`);
+}
+
+function installChainedSddPreset(projectRoot) {
+  const presetDir = join(STARTER_ROOT, "presets", "chained-sdd");
+  if (!existsSync(join(presetDir, "preset.yml"))) {
+    console.warn("warn: presets/chained-sdd missing; skipped preset");
+    return false;
+  }
+  if (!existsSync(join(projectRoot, ".specify"))) {
+    console.warn("warn: .specify/ missing; skipped preset");
+    return false;
+  }
+
+  const r = specifyCli(["preset", "add", "--dev", presetDir], projectRoot);
+  const out = specifyCliOutput(r);
+  if (r.status === 0) {
+    console.log("installed chained-sdd preset (constitution-template append)");
+    return true;
+  }
+  if (/already installed|already exists/i.test(out)) {
+    console.log("chained-sdd preset already installed; skipping");
+    return true;
+  }
+  console.warn(`warn: specify preset add --dev failed: ${out.split("\n")[0]}`);
+  return false;
 }
 
 function looksLikeUnfilledConstitution(text) {
@@ -432,15 +466,25 @@ function insertConstitutionPipeline(text, fragment) {
   return text.trimEnd() + "\n\n" + block;
 }
 
-function seedConstitutionPipeline(projectRoot) {
-  const fragmentPath = join(TEMPLATES, "constitution-pipeline.md");
+function seedConstitutionPipeline(projectRoot, { presetInstalled } = {}) {
+  const fragmentPath = join(
+    STARTER_ROOT,
+    "presets",
+    "chained-sdd",
+    "templates",
+    "constitution-pipeline.md",
+  );
+  if (!existsSync(fragmentPath)) return;
   const fragment = readFileSync(fragmentPath, "utf8");
   const needle = "Autonomy & Spec Kit pipeline";
 
-  const targets = [
-    join(projectRoot, ".specify", "templates", "constitution-template.md"),
-    join(projectRoot, ".specify", "memory", "constitution.md"),
-  ];
+  const targets = [];
+  // Preset owns constitution-template composition. Only patch the core
+  // template file if preset install failed.
+  if (!presetInstalled) {
+    targets.push(join(projectRoot, ".specify", "templates", "constitution-template.md"));
+  }
+  targets.push(join(projectRoot, ".specify", "memory", "constitution.md"));
 
   for (const dest of targets) {
     if (!existsSync(dest)) continue;
@@ -536,7 +580,8 @@ function main() {
   writeAgentsFiles(projectRoot);
   writeCursorPipelineRule(projectRoot);
   overlaySpeckitWorkflow(projectRoot);
-  seedConstitutionPipeline(projectRoot);
+  const presetInstalled = installChainedSddPreset(projectRoot);
+  seedConstitutionPipeline(projectRoot, { presetInstalled });
   mergePipelinePointerIntoAgentDocs(projectRoot);
   copyLinkScript(projectRoot);
   runLinkScript(projectRoot);

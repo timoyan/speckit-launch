@@ -79,7 +79,7 @@ npx speckit-launch my-app
 4. 把 `speckit-*` skills 去重收進 `.agents/skills`
 5. 寫入 `.agents/skills.json` 與 `.agents/AGENTS.md`（串接流程）
 6. 寫入 `.cursor/rules/speckit-pipeline.mdc`，並安裝 `.specify/workflows/overlays/speckit/chained-sdd.yml`（**不**覆蓋官方 bundled `workflow.yml`）
-7. 把通用流程原則種進 constitution template（不複製別的專案已填好的 constitution）
+7. 安裝本地 `chained-sdd` preset（`specify preset add --dev`），讓 `/speckit-constitution` 把流程原則 append 進憲章 scaffold。尚未填寫的 `constitution.md` 也會種入同一段。不複製別的專案已填好的 constitution。 **尚未** 發佈到 Spec Kit catalog。
 8. 若已存在 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.github/copilot-instructions.md`），補一段流程 pointer
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
 10. 把 skill-mount 規則合併進 `.gitignore`
@@ -112,7 +112,7 @@ specify → clarify → plan → tasks → analyze → implement → converge
 - `.agents/AGENTS.md` — 流程與自主推進的 canonical 規則
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` 的暫停規則
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：拿掉兩道 review gate，插入 clarify／analyze／converge。官方 `workflow.yml` 仍可單獨升級
-- `.specify/templates/constitution-template.md`（以及尚未填寫的 `constitution.md`）— 通用 **Autonomy & Spec Kit pipeline** 原則
+- `chained-sdd` preset — 把 **Autonomy & Spec Kit pipeline** 原則 append 到 `constitution-template`（本地 `--dev` 安裝；不是 catalog 發行）。尚未填寫的 `constitution.md` 同樣種入
 
 產品特有規則（領域模型、UI kit、changelog 格式……）不放進這個啟動器。那些用新專案的 `/speckit-constitution` 寫。
 
@@ -167,7 +167,9 @@ speckit-launch/
     skills.json
     speckit-pipeline.mdc
     speckit-overlay.yml
-    constitution-pipeline.md
+  presets/chained-sdd/
+    preset.yml
+    templates/constitution-pipeline.md
   skill/new-project/SKILL.md
   package.json
   LICENSE

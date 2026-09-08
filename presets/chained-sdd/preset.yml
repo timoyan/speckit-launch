@@ -1,0 +1,26 @@
+schema_version: "1.0"
+
+preset:
+  id: "chained-sdd"
+  name: "Chained SDD"
+  version: "1.0.0"
+  description: "Appends the Autonomy & Spec Kit pipeline principle to the constitution scaffold. Not a catalog release."
+  author: "speckit-launch"
+  repository: "https://github.com/timoyan/speckit-launch"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.0.0"
+
+provides:
+  templates:
+    - type: "template"
+      name: "constitution-template"
+      file: "templates/constitution-pipeline.md"
+      description: "Append Autonomy & Spec Kit pipeline (chained specify → converge, pause after clarify/analyze only when issues remain)"
+      strategy: "append"
+
+tags:
+  - "workflow"
+  - "autonomy"
+  - "local"

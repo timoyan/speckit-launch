@@ -79,7 +79,7 @@ Named projects are created under the **current working directory** unless `--dir
 4. Dedupes `speckit-*` skills into `.agents/skills`
 5. Writes `.agents/skills.json` and `.agents/AGENTS.md` (chained pipeline)
 6. Writes `.cursor/rules/speckit-pipeline.mdc` and installs `.specify/workflows/overlays/speckit/chained-sdd.yml` (does **not** overwrite the bundled workflow.yml)
-7. Seeds the generic pipeline principle into the constitution template (does not copy another project's filled constitution)
+7. Installs the local `chained-sdd` preset (`specify preset add --dev`) so `/speckit-constitution` appends the pipeline principle. Also seeds an unfilled `constitution.md`. Does not copy another project's filled constitution. **Not** published to a Spec Kit catalog.
 8. Merges a short pipeline pointer into existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) if those files already exist
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
 10. Merges skill-mount rules into `.gitignore`
@@ -112,7 +112,7 @@ Overlays written into the new project:
 - `.agents/AGENTS.md` — canonical pipeline + autonomy rules
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` copy of the pause rules
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: drop the two review gates, insert clarify / analyze / converge. Official `workflow.yml` stays upgradable.
-- `.specify/templates/constitution-template.md` (and unfilled `constitution.md`) — generic **Autonomy & Spec Kit pipeline** principle
+- `chained-sdd` preset — appends the **Autonomy & Spec Kit pipeline** principle onto `constitution-template` (local `--dev` install; not a catalog release). Unfilled `constitution.md` is seeded the same way.
 
 Product-specific rules (domain model, UI kit, changelog format, …) stay out of this launcher. Write those with `/speckit-constitution` for the new project.
 
@@ -167,7 +167,9 @@ speckit-launch/
     skills.json
     speckit-pipeline.mdc
     speckit-overlay.yml
-    constitution-pipeline.md
+  presets/chained-sdd/
+    preset.yml
+    templates/constitution-pipeline.md
   skill/new-project/SKILL.md
   package.json
   LICENSE
