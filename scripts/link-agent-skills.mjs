@@ -19,7 +19,7 @@ import {
   rmSync,
   symlinkSync,
 } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,6 +32,21 @@ const links = [
   ".codex/skills",
 ];
 const isWindows = process.platform === "win32";
+
+function pathsEqual(a, b) {
+  let na = a;
+  let nb = b;
+  try {
+    na = realpathSync(a);
+    nb = realpathSync(b);
+  } catch {
+    na = resolve(a);
+    nb = resolve(b);
+  }
+  na = String(na).replace(/\\/g, "/");
+  nb = String(nb).replace(/\\/g, "/");
+  return isWindows ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+}
 
 if (!existsSync(canonical)) {
   console.error(`Canonical skills missing: ${canonical}`);
@@ -53,7 +68,7 @@ function isMountOrMissing(path) {
       /* continue */
     }
     try {
-      if (realpathSync(path) === realpathSync(canonical)) return "junction";
+      if (pathsEqual(path, canonical)) return "junction";
     } catch {
       /* continue */
     }

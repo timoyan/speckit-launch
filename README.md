@@ -26,6 +26,8 @@ This launcher installs the mainstream set in one step, consolidates `speckit-*` 
 
 This launcher uses whatever `specify` is on `PATH`. It does **not** vendor Spec Kit skills or pin a CLI in `package.json`.
 
+Line endings are **LF** in this repo and in generated projects (`.gitattributes`: `* text=auto eol=lf`), so Windows `core.autocrlf` does not split diffs or break shebangs.
+
 | | Version |
 |--|---------|
 | **Requires** | Spec Kit **1.0+** (`specify workflow overlay`, overlay path `.specify/workflows/overlays/`) |
@@ -83,6 +85,7 @@ Named projects are created under the **current working directory** unless `--dir
 8. Merges a short pipeline pointer into existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) if those files already exist
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
 10. Merges skill-mount rules into `.gitignore`
+11. Writes or merges `.gitattributes` (`* text=auto eol=lf`) so generated projects keep LF on Windows / macOS / Linux
 
 It does **not** copy another project's product constitution. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
 
@@ -159,10 +162,13 @@ Point the skill at this repo via `SPECKIT_STARTER` or a path you provide — do 
 
 ```text
 speckit-launch/
+  .gitattributes
+  .editorconfig
   bin/new-project.mjs
   scripts/link-agent-skills.mjs
   templates/
     gitignore.fragment
+    gitattributes.fragment
     AGENTS.md
     skills.json
     speckit-pipeline.mdc

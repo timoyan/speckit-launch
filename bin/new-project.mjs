@@ -20,7 +20,6 @@
  */
 import { spawnSync } from "node:child_process";
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -34,7 +33,26 @@ import { fileURLToPath } from "node:url";
 
 const STARTER_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATES = join(STARTER_ROOT, "templates");
-const DEFAULT_SCRIPT = process.platform === "win32" ? "ps" : "sh";
+const IS_WINDOWS = process.platform === "win32";
+const DEFAULT_SCRIPT = IS_WINDOWS ? "ps" : "sh";
+
+function readText(filePath) {
+  return readFileSync(filePath, "utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function writeText(filePath, content) {
+  writeFileSync(filePath, String(content).replace(/\r\n/g, "\n").replace(/\r/g, "\n"), "utf8");
+}
+
+function copyTextFile(from, to) {
+  writeText(to, readText(from));
+}
+
+function pathsEqual(a, b) {
+  const na = resolve(a).replace(/\\/g, "/");
+  const nb = resolve(b).replace(/\\/g, "/");
+  return IS_WINDOWS ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+}
 
 /** Mainstream agents installed by default (no --ai required). */
 const MAINSTREAM_INTEGRATIONS = [
@@ -140,11 +158,12 @@ function parseArgs(argv) {
 }
 
 function which(cmd) {
-  const r = spawnSync(process.platform === "win32" ? "where" : "which", [cmd], {
-    encoding: "utf8",
-    shell: false,
-  });
-  return r.status === 0 && r.stdout.trim().length > 0;
+  const bin = IS_WINDOWS ? "where" : "which";
+  let r = spawnSync(bin, [cmd], { encoding: "utf8", shell: false });
+  if (r.error && r.error.code === "ENOENT" && IS_WINDOWS) {
+    r = spawnSync(bin, [cmd], { encoding: "utf8", shell: true });
+  }
+  return r.status === 0 && (r.stdout || "").trim().length > 0;
 }
 
 function run(cmd, args, cwd) {
@@ -155,7 +174,7 @@ function run(cmd, args, cwd) {
     shell: false,
     env: process.env,
   });
-  if (r.error && r.error.code === "ENOENT" && process.platform === "win32") {
+  if (r.error && r.error.code === "ENOENT" && IS_WINDOWS) {
     r = spawnSync(cmd, args, {
       cwd,
       stdio: "inherit",
@@ -242,7 +261,7 @@ function moveSpeckitSkills(projectRoot) {
       const from = join(srcRoot, name);
       const to = join(canonical, name);
 
-      if (resolve(from) === resolve(to)) {
+      if (pathsEqual(from, to)) {
         seen.add(name);
         continue;
       }
@@ -274,7 +293,7 @@ function moveSpeckitSkills(projectRoot) {
   for (const rel of SKILL_MOUNT_DIRS) {
     const p = join(projectRoot, ...rel.split("/"));
     if (!existsSync(p)) continue;
-    if (resolve(p) === resolve(canonical)) continue;
+    if (pathsEqual(p, canonical)) continue;
     try {
       const left = readdirSync(p);
       if (left.length === 0) {
@@ -291,11 +310,11 @@ function moveSpeckitSkills(projectRoot) {
 
 function mergeGitignore(projectRoot) {
   const fragmentPath = join(TEMPLATES, "gitignore.fragment");
-  const fragment = readFileSync(fragmentPath, "utf8").trimEnd() + "\n";
+  const fragment = readText(fragmentPath).trimEnd() + "\n";
   const gitignorePath = join(projectRoot, ".gitignore");
   let existing = "";
   if (existsSync(gitignorePath)) {
-    existing = readFileSync(gitignorePath, "utf8");
+    existing = readText(gitignorePath);
   }
 
   const marker = "# Per-agent skill mounts (canonical copy is .agents/skills only)";
@@ -305,8 +324,29 @@ function mergeGitignore(projectRoot) {
   }
 
   const sep = existing && !existing.endsWith("\n") ? "\n\n" : existing ? "\n" : "";
-  writeFileSync(gitignorePath, existing + sep + fragment, "utf8");
+  writeText(gitignorePath, existing + sep + fragment);
   console.log("merged Spec Kit / skill-mount rules into .gitignore");
+}
+
+function mergeGitattributes(projectRoot) {
+  const fragmentPath = join(TEMPLATES, "gitattributes.fragment");
+  if (!existsSync(fragmentPath)) return;
+  const fragment = readText(fragmentPath).trimEnd() + "\n";
+  const dest = join(projectRoot, ".gitattributes");
+  const marker = "# speckit-launch: line endings";
+  if (!existsSync(dest)) {
+    writeText(dest, fragment);
+    console.log("wrote .gitattributes (LF line endings)");
+    return;
+  }
+  const existing = readText(dest);
+  if (existing.includes(marker) || existing.includes("eol=lf")) {
+    console.log(".gitattributes already has LF rules; skipping merge");
+    return;
+  }
+  const sep = existing.endsWith("\n") ? "\n" : "\n\n";
+  writeText(dest, existing.trimEnd() + sep + fragment);
+  console.log("merged LF line-ending rules into .gitattributes");
 }
 
 const PIPELINE_MARKER = "<!-- speckit-launch:pipeline -->";
@@ -336,19 +376,19 @@ function writeAgentsFiles(projectRoot) {
 
   const skillsJson = join(agentsDir, "skills.json");
   if (!existsSync(skillsJson)) {
-    copyFileSync(join(TEMPLATES, "skills.json"), skillsJson);
+    copyTextFile(join(TEMPLATES, "skills.json"), skillsJson);
     console.log("wrote .agents/skills.json");
   }
 
   const agentsMd = join(agentsDir, "AGENTS.md");
-  const template = readFileSync(join(TEMPLATES, "AGENTS.md"), "utf8");
+  const template = readText(join(TEMPLATES, "AGENTS.md"));
   if (!existsSync(agentsMd)) {
-    writeFileSync(agentsMd, template, "utf8");
+    writeText(agentsMd, template);
     console.log("wrote .agents/AGENTS.md");
     return;
   }
 
-  const existing = readFileSync(agentsMd, "utf8");
+  const existing = readText(agentsMd);
   if (existing.includes(PIPELINE_MARKER) || existing.includes(PIPELINE_NEEDLE)) {
     console.log(".agents/AGENTS.md already has Spec Kit pipeline; skipping");
     return;
@@ -356,7 +396,7 @@ function writeAgentsFiles(projectRoot) {
 
   const markerAt = template.indexOf(PIPELINE_MARKER);
   const insert = "\n\n" + (markerAt >= 0 ? template.slice(markerAt) : template);
-  writeFileSync(agentsMd, existing.trimEnd() + insert, "utf8");
+  writeText(agentsMd, existing.trimEnd() + insert);
   console.log("merged Spec Kit pipeline into .agents/AGENTS.md");
 }
 
@@ -364,7 +404,7 @@ function writeCursorPipelineRule(projectRoot) {
   const destDir = join(projectRoot, ".cursor", "rules");
   mkdirSync(destDir, { recursive: true });
   const dest = join(destDir, "speckit-pipeline.mdc");
-  copyFileSync(join(TEMPLATES, "speckit-pipeline.mdc"), dest);
+  copyTextFile(join(TEMPLATES, "speckit-pipeline.mdc"), dest);
   console.log("wrote .cursor/rules/speckit-pipeline.mdc");
 }
 
@@ -375,7 +415,7 @@ function specifyCli(args, cwd) {
     shell: false,
     env: process.env,
   });
-  if (r.error && r.error.code === "ENOENT" && process.platform === "win32") {
+  if (r.error && r.error.code === "ENOENT" && IS_WINDOWS) {
     r = spawnSync("specify", args, {
       cwd,
       encoding: "utf8",
@@ -405,7 +445,7 @@ function overlaySpeckitWorkflow(projectRoot) {
   // Do not overwrite the installed workflow — `specify workflow update`
   // can refresh the base while this overlay keeps the chained SDD steps.
   if (existsSync(dest)) {
-    copyFileSync(overlaySrc, dest);
+    copyTextFile(overlaySrc, dest);
     console.log("refreshed .specify/workflows/overlays/speckit/chained-sdd.yml");
     return;
   }
@@ -416,7 +456,7 @@ function overlaySpeckitWorkflow(projectRoot) {
     return;
   }
 
-  copyFileSync(overlaySrc, dest);
+  copyTextFile(overlaySrc, dest);
   const detail = specifyCliOutput(r).split("\n")[0] || "overlay add failed";
   console.log(`wrote ${dest} (specify workflow overlay add skipped: ${detail})`);
 }
@@ -475,7 +515,7 @@ function seedConstitutionPipeline(projectRoot, { presetInstalled } = {}) {
     "constitution-pipeline.md",
   );
   if (!existsSync(fragmentPath)) return;
-  const fragment = readFileSync(fragmentPath, "utf8");
+  const fragment = readText(fragmentPath);
   const needle = "Autonomy & Spec Kit pipeline";
 
   const targets = [];
@@ -488,7 +528,7 @@ function seedConstitutionPipeline(projectRoot, { presetInstalled } = {}) {
 
   for (const dest of targets) {
     if (!existsSync(dest)) continue;
-    const existing = readFileSync(dest, "utf8");
+    const existing = readText(dest);
     if (existing.includes(needle)) {
       console.log(`${dest.includes("templates") ? "constitution-template.md" : "constitution.md"} already has pipeline principle; skipping`);
       continue;
@@ -499,7 +539,7 @@ function seedConstitutionPipeline(projectRoot, { presetInstalled } = {}) {
       console.log("constitution.md is already filled; not injecting pipeline principle (edit via /speckit-constitution)");
       continue;
     }
-    writeFileSync(dest, insertConstitutionPipeline(existing, fragment), "utf8");
+    writeText(dest, insertConstitutionPipeline(existing, fragment));
     console.log(`seeded Autonomy & Spec Kit pipeline into ${dest.includes("templates") ? "constitution-template.md" : "constitution.md"}`);
   }
 }
@@ -508,12 +548,12 @@ function mergePipelinePointerIntoAgentDocs(projectRoot) {
   for (const rel of AGENT_DOC_CANDIDATES) {
     const dest = join(projectRoot, ...rel.split("/"));
     if (!existsSync(dest)) continue;
-    const existing = readFileSync(dest, "utf8");
+    const existing = readText(dest);
     if (existing.includes(PIPELINE_NEEDLE) || existing.includes("Spec Kit chained pipeline")) {
       continue;
     }
     const sep = existing.endsWith("\n") ? "\n" : "\n\n";
-    writeFileSync(dest, existing.trimEnd() + sep + AGENT_PIPELINE_POINTER, "utf8");
+    writeText(dest, existing.trimEnd() + sep + AGENT_PIPELINE_POINTER);
     console.log(`merged Spec Kit pipeline pointer into ${rel}`);
   }
 }
@@ -522,7 +562,7 @@ function copyLinkScript(projectRoot) {
   const scriptsDir = join(projectRoot, "scripts");
   mkdirSync(scriptsDir, { recursive: true });
   const dest = join(scriptsDir, "link-agent-skills.mjs");
-  copyFileSync(join(STARTER_ROOT, "scripts", "link-agent-skills.mjs"), dest);
+  copyTextFile(join(STARTER_ROOT, "scripts", "link-agent-skills.mjs"), dest);
   console.log("copied scripts/link-agent-skills.mjs");
 }
 
@@ -586,6 +626,7 @@ function main() {
   copyLinkScript(projectRoot);
   runLinkScript(projectRoot);
   mergeGitignore(projectRoot);
+  mergeGitattributes(projectRoot);
 
   console.log(`
 Done. Spec Kit project ready at:

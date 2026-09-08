@@ -26,6 +26,8 @@ specify init <name> --integration copilot --script sh --non-interactive
 
 啟動器使用 `PATH` 上的 `specify`。它 **不會** 把 Spec Kit skills 打進這個套件，也不在 `package.json` pin CLI。
 
+這個 repo 與產生的專案一律用 **LF**（`.gitattributes`：`* text=auto eol=lf`），避免 Windows `core.autocrlf` 把 diff 拆散或弄壞 shebang。
+
 | | 版本 |
 |--|------|
 | **最低需求** | Spec Kit **1.0+**（`specify workflow overlay`、overlay 路徑 `.specify/workflows/overlays/`） |
@@ -83,6 +85,7 @@ npx speckit-launch my-app
 8. 若已存在 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.github/copilot-instructions.md`），補一段流程 pointer
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
 10. 把 skill-mount 規則合併進 `.gitignore`
+11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`），讓新專案在 Windows／macOS／Linux 都維持 LF
 
 它 **不會** 複製別的專案的產品憲章。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
 
@@ -159,10 +162,13 @@ node scripts/link-agent-skills.mjs
 
 ```text
 speckit-launch/
+  .gitattributes
+  .editorconfig
   bin/new-project.mjs
   scripts/link-agent-skills.mjs
   templates/
     gitignore.fragment
+    gitattributes.fragment
     AGENTS.md
     skills.json
     speckit-pipeline.mdc

@@ -1,0 +1,2 @@
+# Cross-platform: commit and check out LF. Overrides core.autocrlf.
+* text=auto eol=lf
