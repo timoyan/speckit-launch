@@ -12,7 +12,8 @@
     "templates/",
     "skill/",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "README.zh-Hant.md"
   ],
   "engines": {
     "node": ">=18"

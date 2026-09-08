@@ -1,5 +1,7 @@
 # speckit-launch
 
+English | [繁體中文](README.zh-Hant.md)
+
 One command to launch a [GitHub Spec Kit](https://github.com/github/spec-kit) project with **mainstream AI agent integrations** and a shared canonical `.agents/skills` tree.
 
 Works on **Windows, macOS, and Linux**. Not locked to one coding agent or OS.
@@ -170,6 +172,7 @@ speckit-launch/
   package.json
   LICENSE
   README.md
+  README.zh-Hant.md
 ```
 
 ## License
