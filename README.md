@@ -54,11 +54,29 @@ Default installs these Spec Kit integrations:
 
 No `--ai` flag needed. Use `--only <integration>` only if you want a single agent.
 
-If you install this package (or add it to `PATH` via `npm link` / `npx`):
+### Local link and global usage (`npm link`)
+
+If you clone this repository and want to run `speckit-launch` or `npx speckit-launch` from any directory:
+
+```bash
+cd speckit-launch
+npm run link          # equivalent to npm link
+```
+
+Once linked, create new projects from any working path:
 
 ```bash
 npx speckit-launch my-app
+# or directly:
+speckit-launch my-app
 ```
+
+To unlink later:
+
+```bash
+npm run unlink        # equivalent to npm unlink -g speckit-launch
+```
+
 
 ### Flags
 

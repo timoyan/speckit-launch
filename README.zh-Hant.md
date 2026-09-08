@@ -54,11 +54,29 @@ node speckit-launch/bin/new-project.mjs my-app --dir ~/projects --script sh
 
 不必加 `--ai`。只有在只要單一 agent 時才用 `--only <integration>`。
 
-若已安裝此套件（或用 `npm link`／`npx` 加進 `PATH`）：
+### 本地連結與全域使用 (`npm link`)
+
+如果你 clone 了此 repo，想在系統任何路徑直接使用 `speckit-launch` 或 `npx speckit-launch`：
+
+```bash
+cd speckit-launch
+npm run link          # 等同於 npm link
+```
+
+建立連結後，即可在任何目錄建立新專案：
 
 ```bash
 npx speckit-launch my-app
+# 或直接調用：
+speckit-launch my-app
 ```
+
+若日後需要解除連結：
+
+```bash
+npm run unlink        # 等同於 npm unlink -g speckit-launch
+```
+
 
 ### 旗標
 
