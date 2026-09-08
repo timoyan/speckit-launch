@@ -20,6 +20,17 @@ This launcher installs the mainstream set in one step, consolidates `speckit-*` 
 - [`specify`](https://github.com/github/spec-kit) on `PATH`, or [`uv`](https://docs.astral.sh/uv/) (the CLI installs `specify-cli` via `uv tool install` if needed)
 - `git` (unless you pass `--no-git`)
 
+### Spec Kit compatibility
+
+This launcher uses whatever `specify` is on `PATH`. It does **not** vendor Spec Kit skills or pin a CLI in `package.json`.
+
+| | Version |
+|--|---------|
+| **Requires** | Spec Kit **1.0+** (`specify workflow overlay`, overlay path `.specify/workflows/overlays/`) |
+| **Last smoke-tested** | **1.0.4** (2026-09-08) |
+
+The chained-SDD overlay is written against the bundled `speckit` workflow step ids (`specify`, `review-spec`, `plan`, `review-plan`, `tasks`, `implement`). A newer CLI that renames those ids needs an overlay edit — see [After upgrading the `specify` CLI](#after-upgrading-the-specify-cli).
+
 ## Quick start
 
 ```bash
@@ -109,7 +120,7 @@ This repo is a **launcher**, not a Spec Kit project. There is no `.specify/` her
 
 New projects pick up the new CLI automatically the next time you run `node bin/new-project.mjs`. To keep the launcher itself compatible:
 
-1. Confirm the CLI: `specify version` (this tree is tested against **1.0.x**)
+1. Confirm the CLI: `specify version` (last smoke-tested: **1.0.4**; requires **1.0+**)
 2. Skim `specify init --help` and `specify integration install --help` if a major release changed flags
 3. Check that the bundled `speckit` workflow still has these step ids (overlay anchors): `specify`, `review-spec`, `plan`, `review-plan`, `tasks`, `implement`
 4. Smoke-test: `node bin/new-project.mjs --only grok --no-git smoke-app --dir %TEMP%` (or `$TMPDIR`)
