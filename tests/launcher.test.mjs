@@ -73,6 +73,15 @@ test("CLI shows help and version flags", () => {
   assert.match(rVer.stdout.trim(), /^\d+\.\d+\.\d+/);
 });
 
+test("CLI executes when invoked via relative path or symlink", () => {
+  const rRel = spawnSync(process.execPath, ["bin/new-project.mjs", "--help"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  assert.equal(rRel.status, 0);
+  assert.ok(rRel.stdout.includes("Usage:"), "CLI should output usage when invoked via relative path");
+});
+
 test("adaptSkillScript transforms commands across sh, ps, py", () => {
   const psSnippet = "Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly` from repo root";
 

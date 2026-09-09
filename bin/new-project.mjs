@@ -24,6 +24,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -800,9 +801,17 @@ export {
   usage,
 };
 
+function safeRealpath(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
 const isDirectRun = Boolean(
   process.argv[1] &&
-  resolve(fileURLToPath(import.meta.url)).toLowerCase() === resolve(process.argv[1]).toLowerCase()
+  safeRealpath(fileURLToPath(import.meta.url)).toLowerCase() === safeRealpath(process.argv[1]).toLowerCase()
 );
 
 if (isDirectRun) {
