@@ -205,30 +205,51 @@ Copy [`skill/new-project/SKILL.md`](skill/new-project/SKILL.md) into your agent'
 
 Point the skill at this repo via `SPECKIT_STARTER` or a path you provide — do not hardcode machine-specific locations.
 
-## Layout
+## Architecture & Layout
+
+`speckit-launch` cleanly decouples **Chained SDD Methodology Assets** from **Generic Repository Scaffolding**:
 
 ```text
 speckit-launch/
-  .gitattributes
-  .editorconfig
-  bin/new-project.mjs
-  scripts/link-agent-skills.mjs
-  templates/
-    gitignore.fragment
-    gitattributes.fragment
-    AGENTS.md
-    skills.json
-    speckit-pipeline.mdc
-    speckit-overlay.yml
-  presets/chained-sdd/
-    preset.yml
-    templates/constitution-pipeline.md
-  skill/new-project/SKILL.md
-  package.json
-  LICENSE
-  README.md
-  README.zh-Hant.md
+├── bin/
+│   └── new-project.mjs                      # Main launcher CLI orchestrator
+├── scripts/
+│   └── link-agent-skills.mjs                # OS junction / symlink mount utility
+├── presets/chained-sdd/                     # [Self-Contained Chained SDD Methodology Bundle]
+│   ├── preset.yml                           # Spec Kit Preset declaration
+│   ├── README.md                            # Preset usage and integration guide
+│   ├── LICENSE
+│   ├── workflows/
+│   │   └── chained-sdd.yml                  # SDD step graph with retry review gates
+│   ├── rules/
+│   │   └── speckit-pipeline.mdc             # Agent chained pause/continue rules (Cursor)
+│   ├── templates/
+│   │   └── constitution-pipeline.md         # Seeded pipeline principle for constitution
+│   └── skills/                              # Enhanced workflow execution skills
+│       ├── speckit-clarify/SKILL.md         # Immediate question & default persistence
+│       ├── speckit-analyze/SKILL.md         # Structured analysis.md with remediation checklist
+│       ├── speckit-implement/SKILL.md       # Step 2.5 auto-remediation application
+│       └── speckit-converge/SKILL.md        # Automated ADR extraction & living spec consolidation
+├── templates/                               # [Pure Repository Infrastructure Scaffolding]
+│   ├── AGENTS.md                            # Agent autonomy & capability routing rules
+│   ├── gitattributes.fragment               # Cross-platform LF line endings (* text=auto eol=lf)
+│   ├── gitignore.fragment                   # Gitignore including transient spec artifacts
+│   └── skills.json                          # Shared .agents/skills catalog metadata
+├── skill/new-project/
+│   └── SKILL.md                             # Agent user skill for invoking speckit-launch
+├── package.json
+├── LICENSE
+├── README.md
+└── README.zh-Hant.md
 ```
+
+### Architectural Layer Responsibilities
+
+| Layer | Directory | Purpose | Lifecycle & Scope |
+|-------|-----------|---------|-------------------|
+| **Chained SDD Methodology** | `presets/chained-sdd/` | Bundles workflow graphs, agent pause rules, constitution fragments, and the 4 specialized SDD skills. | Portable & self-contained. Can be installed into any existing Spec Kit project via `specify preset add --dev`. |
+| **Repo Scaffolding** | `templates/` | Pure project-level files (`.gitignore`, `.gitattributes`, `AGENTS.md`, `skills.json`). | Initialized once upon project bootstrap; decoupled from specific workflow presets. |
+| **Agent Mounts Engine** | `scripts/` | Rebuilds Windows directory junctions or Unix symlinks pointing to `.agents/skills`. | Ensures cross-agent skill discovery without duplicate file copies or agent lock-in. |
 
 ## License
 

@@ -205,30 +205,51 @@ node scripts/link-agent-skills.mjs
 
 用 `SPECKIT_STARTER` 或對話裡提供的路徑指向這個 repo — 不要寫死機器專用路徑。
 
-## 目錄結構
+## 架構全景與目錄結構
+
+`speckit-launch` 將 **Chained SDD 研發方法論資產** 與 **通用 Repository 骨架** 進行了嚴謹的高內聚解耦：
 
 ```text
 speckit-launch/
-  .gitattributes
-  .editorconfig
-  bin/new-project.mjs
-  scripts/link-agent-skills.mjs
-  templates/
-    gitignore.fragment
-    gitattributes.fragment
-    AGENTS.md
-    skills.json
-    speckit-pipeline.mdc
-    speckit-overlay.yml
-  presets/chained-sdd/
-    preset.yml
-    templates/constitution-pipeline.md
-  skill/new-project/SKILL.md
-  package.json
-  LICENSE
-  README.md
-  README.zh-Hant.md
+├── bin/
+│   └── new-project.mjs                      # 主啟動器 CLI 流程調度核心
+├── scripts/
+│   └── link-agent-skills.mjs                # OS 層級符號連結／Junction 掛載工具
+├── presets/chained-sdd/                     # 【自包含 Chained SDD 方法論完整套件】
+│   ├── preset.yml                           # Spec Kit Preset 宣告檔
+│   ├── README.md                            # Preset 說明與安裝指引
+│   ├── LICENSE
+│   ├── workflows/
+│   │   └── chained-sdd.yml                  # SDD 狀態圖定義與重試審核閘門
+│   ├── rules/
+│   │   └── speckit-pipeline.mdc             # Agent 推進與暫停決策規則 (Cursor alwaysApply)
+│   ├── templates/
+│   │   └── constitution-pipeline.md         # 注入憲章的連鎖自主原則
+│   └── skills/                              # 核心工作流執行技能組
+│       ├── speckit-clarify/SKILL.md         # 澄清問題與預設選項即時落地
+│       ├── speckit-analyze/SKILL.md         # 結構化 analysis.md 稽核報告與修復清單
+│       ├── speckit-implement/SKILL.md       # Step 2.5 實作前自動套用修復
+│       └── speckit-converge/SKILL.md        # 自動 ADR 萃取與單檔活規格 (Living Spec) 扁平化
+├── templates/                               # 【純專案 Repo 基礎架構 Scaffolding】
+│   ├── AGENTS.md                            # 專案 Agent 自治方針與模型能力分工引導
+│   ├── gitattributes.fragment               # 跨平台 LF 換行宣告 (* text=auto eol=lf)
+│   ├── gitignore.fragment                   # 包含暫態 spec 執行檔的 Git 忽略清單
+│   └── skills.json                          # .agents/skills 目錄清冊元數據
+├── skill/new-project/
+│   └── SKILL.md                             # 供 Agent 自主呼叫 speckit-launch 的技能定義
+├── package.json
+├── LICENSE
+├── README.md
+└── README.zh-Hant.md
 ```
+
+### 架構分層職責
+
+| 架構層次 | 目錄 | 職責 | 生命週期與範疇 |
+|---|---|---|---|
+| **Chained SDD 方法論** | `presets/chained-sdd/` | 打包工作流程圖、Agent 暫停準則、憲章片段、以及 4 個專屬 SDD 技能。 | 可攜且完全自包含。能隨時透過 `specify preset add --dev` 獨立安裝至任何既有 Spec Kit 專案。 |
+| **專案基礎骨架** | `templates/` | 純專案層級檔案（`.gitignore`、`.gitattributes`、`AGENTS.md`、`skills.json`）。 | 專案初始化時一次性寫入／合併；與特定工作流方法論解耦。 |
+| **跨 Agent 掛載引擎** | `scripts/` | 重建指向 `.agents/skills` 的 Windows Directory Junction 或 Unix Symlink。 | 確保多 Agent 環境共用單一來源，避免重複檔案拷貝或 Agent 生態鎖定。 |
 
 ## 授權
 
