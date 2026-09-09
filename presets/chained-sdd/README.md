@@ -16,7 +16,17 @@ Local Spec Kit preset (not published to a catalog). Bundles the complete **Chain
    - `speckit-implement`: Step 2.5 auto-apply remediation before executing tasks.
    - `speckit-converge`: Automatic ADR extraction into `docs/adr/` and single-file living spec consolidation (`specs/<id>-<name>.md`).
 
-Installed automatically by `speckit-launch`. To add it to an existing Spec Kit project:
+Installed automatically by `speckit-launch`.
+
+### Standalone Installation (into existing Spec Kit projects)
+
+To install or update the Chained SDD methodology (workflow overlay, enhanced skills, rules, and constitution principle) into an existing Spec Kit project, run:
+
+```bash
+node /path/to/speckit-launch/presets/chained-sdd/install.mjs [targetDir]
+```
+
+Or via the Spec Kit CLI manually:
 
 ```bash
 specify preset add --dev /path/to/speckit-launch/presets/chained-sdd

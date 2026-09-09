@@ -27,6 +27,7 @@
     "agents"
   ],
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "start": "node bin/new-project.mjs",
     "version": "node bin/new-project.mjs --version",
     "link": "npm link",

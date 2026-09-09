@@ -216,7 +216,8 @@ speckit-launch/
 ├── scripts/
 │   └── link-agent-skills.mjs                # OS 層級符號連結／Junction 掛載工具
 ├── presets/chained-sdd/                     # 【自包含 Chained SDD 方法論完整套件】
-│   ├── preset.yml                           # Spec Kit Preset 宣告檔
+│   ├── preset.yml                           # Spec Kit Preset 宣告清單
+│   ├── install.mjs                          # 獨立 Preset 安裝腳本（注入既有專案）
 │   ├── README.md                            # Preset 說明與安裝指引
 │   ├── LICENSE
 │   ├── workflows/
@@ -238,6 +239,8 @@ speckit-launch/
 │   └── skills.json                          # .agents/skills 目錄清冊元數據
 ├── skill/new-project/
 │   └── SKILL.md                             # 供 Agent 自主呼叫 speckit-launch 的技能定義
+├── tests/
+│   └── launcher.test.mjs                    # 自動化測試套件 (node --test)
 ├── package.json
 ├── LICENSE
 ├── README.md

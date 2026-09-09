@@ -345,7 +345,35 @@ function moveSpeckitSkills(projectRoot) {
   }
 }
 
-function applyEnhancedSpeckitSkills(projectRoot) {
+function adaptSkillScript(content, scriptType = "ps") {
+  if (scriptType === "sh") {
+    return content
+      .replace(
+        /\.specify\/scripts\/powershell\/check-prerequisites\.ps1/g,
+        ".specify/scripts/bash/check-prerequisites.sh",
+      )
+      .replace(/ -Json\b/g, " --json")
+      .replace(/ -PathsOnly\b/g, " --paths-only")
+      .replace(/ -RequireSpec\b/g, " --require-spec")
+      .replace(/ -RequireTasks\b/g, " --require-tasks")
+      .replace(/ -IncludeTasks\b/g, " --include-tasks");
+  }
+  if (scriptType === "py") {
+    return content
+      .replace(
+        /\.specify\/scripts\/powershell\/check-prerequisites\.ps1/g,
+        "python .specify/scripts/python/check_prerequisites.py",
+      )
+      .replace(/ -Json\b/g, " --json")
+      .replace(/ -PathsOnly\b/g, " --paths-only")
+      .replace(/ -RequireSpec\b/g, " --require-spec")
+      .replace(/ -RequireTasks\b/g, " --require-tasks")
+      .replace(/ -IncludeTasks\b/g, " --include-tasks");
+  }
+  return content;
+}
+
+function applyEnhancedSpeckitSkills(projectRoot, scriptType = "ps") {
   const canonical = join(projectRoot, ".agents", "skills");
   const skillsTemplateDir = join(STARTER_ROOT, "presets", "chained-sdd", "skills");
   if (!existsSync(skillsTemplateDir)) return;
@@ -360,8 +388,9 @@ function applyEnhancedSpeckitSkills(projectRoot) {
     const destDir = join(canonical, name);
     mkdirSync(destDir, { recursive: true });
     const destSkill = join(destDir, "SKILL.md");
-    copyTextFile(srcSkill, destSkill);
-    console.log(`applied enhanced skill template -> .agents/skills/${name}/SKILL.md`);
+    const content = readText(srcSkill);
+    writeText(destSkill, adaptSkillScript(content, scriptType));
+    console.log(`applied enhanced skill template -> .agents/skills/${name}/SKILL.md (${scriptType})`);
   }
 }
 
@@ -704,7 +733,7 @@ function main() {
 
   installIntegrations(projectRoot, keys, opts.script);
   moveSpeckitSkills(projectRoot);
-  applyEnhancedSpeckitSkills(projectRoot);
+  applyEnhancedSpeckitSkills(projectRoot, opts.script);
   writeAgentsFiles(projectRoot);
   writeCursorPipelineRule(projectRoot);
   overlaySpeckitWorkflow(projectRoot);
@@ -763,4 +792,19 @@ Re-launch later:
 `);
 }
 
-main();
+export {
+  parseArgs,
+  getPipelineRules,
+  adaptSkillScript,
+  defaultScript,
+  usage,
+};
+
+const isDirectRun = Boolean(
+  process.argv[1] &&
+  resolve(fileURLToPath(import.meta.url)).toLowerCase() === resolve(process.argv[1]).toLowerCase()
+);
+
+if (isDirectRun) {
+  main();
+}

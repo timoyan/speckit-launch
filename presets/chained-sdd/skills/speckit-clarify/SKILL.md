@@ -171,9 +171,9 @@ Execution steps:
    - Markdown structure valid; only allowed new headings: `## Clarifications`, `### Session YYYY-MM-DD`.
    - Terminology consistency: same canonical term used across all updated sections.
 
-8. Write the updated spec back to `FEATURE_SPEC`.
+9. Write the updated spec back to `FEATURE_SPEC`.
 
-9. **Re-validate Spec Quality Checklist** (if it exists):
+10. **Re-validate Spec Quality Checklist** (if it exists):
    - Check if `FEATURE_DIR/checklists/requirements.md` exists.
    - If it does NOT exist, skip this step silently.
    - If it exists:

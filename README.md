@@ -217,6 +217,7 @@ speckit-launch/
 │   └── link-agent-skills.mjs                # OS junction / symlink mount utility
 ├── presets/chained-sdd/                     # [Self-Contained Chained SDD Methodology Bundle]
 │   ├── preset.yml                           # Spec Kit Preset declaration
+│   ├── install.mjs                          # Standalone preset installer for existing projects
 │   ├── README.md                            # Preset usage and integration guide
 │   ├── LICENSE
 │   ├── workflows/
@@ -238,6 +239,8 @@ speckit-launch/
 │   └── skills.json                          # Shared .agents/skills catalog metadata
 ├── skill/new-project/
 │   └── SKILL.md                             # Agent user skill for invoking speckit-launch
+├── tests/
+│   └── launcher.test.mjs                    # Automated test suite (node --test)
 ├── package.json
 ├── LICENSE
 ├── README.md
