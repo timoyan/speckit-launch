@@ -62,6 +62,7 @@ const MAINSTREAM_INTEGRATIONS = [
   "gemini",
   "grok",
   "codex",
+  "agy",
 ];
 
 /**
@@ -260,11 +261,22 @@ function installIntegrations(projectRoot, keys, script) {
   );
 
   for (const key of rest) {
-    run(
-      "specify",
+    const r = specifyCli(
       ["integration", "install", key, "--force", "--script", script],
       projectRoot,
     );
+    if (r.status === 0) {
+      console.log(`installed integration ${key}`);
+    } else {
+      const out = specifyCliOutput(r);
+      if (/unknown integration/i.test(out)) {
+        console.warn(
+          `warn: specify CLI does not support '${key}' yet (upstream pending; skills remain available via .agents/skills)`,
+        );
+      } else {
+        die(`specify integration install ${key} failed: ${out}`);
+      }
+    }
   }
 }
 
@@ -330,6 +342,26 @@ function moveSpeckitSkills(projectRoot) {
     } catch {
       /* ignore */
     }
+  }
+}
+
+function applyEnhancedSpeckitSkills(projectRoot) {
+  const canonical = join(projectRoot, ".agents", "skills");
+  const skillsTemplateDir = join(TEMPLATES, "skills");
+  if (!existsSync(skillsTemplateDir)) return;
+
+  const skillDirs = readdirSync(skillsTemplateDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  for (const name of skillDirs) {
+    const srcSkill = join(skillsTemplateDir, name, "SKILL.md");
+    if (!existsSync(srcSkill)) continue;
+    const destDir = join(canonical, name);
+    mkdirSync(destDir, { recursive: true });
+    const destSkill = join(destDir, "SKILL.md");
+    copyTextFile(srcSkill, destSkill);
+    console.log(`applied enhanced skill template -> .agents/skills/${name}/SKILL.md`);
   }
 }
 
@@ -647,6 +679,7 @@ function main() {
 
   installIntegrations(projectRoot, keys, opts.script);
   moveSpeckitSkills(projectRoot);
+  applyEnhancedSpeckitSkills(projectRoot);
   writeAgentsFiles(projectRoot);
   writeCursorPipelineRule(projectRoot);
   overlaySpeckitWorkflow(projectRoot);

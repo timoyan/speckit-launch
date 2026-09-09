@@ -50,7 +50,7 @@ node speckit-launch/bin/new-project.mjs my-app --dir ~/projects --script sh
 
 Default installs these Spec Kit integrations:
 
-`copilot`, `claude`, `cursor-agent`, `gemini`, `grok`, `codex`
+`copilot`, `claude`, `cursor-agent`, `gemini`, `grok`, `codex`, `agy`
 
 No `--ai` flag needed. Use `--only <integration>` only if you want a single agent.
 
@@ -96,14 +96,18 @@ Named projects are created under the **current working directory** unless `--dir
 
 1. Ensures `specify` is available (`uv tool install specify-cli` if needed)
 2. `git init` (optional)
-3. `specify init` for the first integration, then `specify integration install --force` for the rest of the mainstream set (or only `--only` if set)
-4. Dedupes `speckit-*` skills into `.agents/skills`
-5. Writes `.agents/skills.json` and `.agents/AGENTS.md` (chained pipeline)
-6. Writes `.cursor/rules/speckit-pipeline.mdc` and installs `.specify/workflows/overlays/speckit/chained-sdd.yml` (does **not** overwrite the bundled workflow.yml)
+3. `specify init` for the first integration, then `specify integration install --force` for the rest of the mainstream set (including `agy`) (or only `--only` if set)
+4. Dedupes `speckit-*` skills into `.agents/skills` and applies production-tested enhancements:
+   - **Immediate Clarify Persistence**: Candidate questions and default recommendations written directly into `spec.md` with interactive checkboxes.
+   - **Actionable `analysis.md` Audit Report**: Structured findings table and user-editable remediation checklist (`- [x] R...`).
+   - **Auto-Remediation in Implement**: Automatically applies checked items from `analysis.md` to `spec.md` / `plan.md` / `tasks.md` before coding.
+   - **Clean Converge with Auto-ADR & Living Spec**: Distills architectural decisions to `docs/adr/`, flattens completed features into high-signal living specs (`specs/<id>-<name>.md`), and cleans transient files.
+5. Writes `.agents/skills.json` and `.agents/AGENTS.md` (chained pipeline rules, remediation workflow, and model routing)
+6. Writes `.cursor/rules/speckit-pipeline.mdc` and installs `.specify/workflows/overlays/speckit/chained-sdd.yml` with interactive gates (`review-clarify` and `review-analyze`) configured with `on_reject: retry` to prevent fatal aborts
 7. Installs the local `chained-sdd` preset (`specify preset add --dev`) so `/speckit-constitution` appends the pipeline principle. Also seeds an unfilled `constitution.md`. Does not copy another project's filled constitution. **Not** published to a Spec Kit catalog.
 8. Merges a short pipeline pointer into existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) if those files already exist
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
-10. Merges skill-mount rules into `.gitignore`
+10. Merges skill-mount and transient execution rules (`specs/*/tasks.md`, `checklists/`, `analysis.md`) into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`) so generated projects keep LF on Windows / macOS / Linux
 
 It does **not** copy another project's product constitution. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
@@ -115,25 +119,26 @@ Official Spec Kit treats clarify / analyze / checklist as optional quality gates
 This launcher overlays the **production chained run** used in real Spec Kit repos:
 
 ```
-specify → clarify → plan → tasks → analyze → implement → converge
+specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
 ```
 
 | Step | Default behavior |
 |------|------------------|
 | After **specify** | Always run **clarify** (do not jump to plan) |
-| After **clarify** | **Pause** only if `[NEEDS CLARIFICATION]` remains, the spec checklist still fails, or Outstanding / high-impact items remain. Answered questions already in the spec do **not** need a second confirmation — **continue immediately** to plan |
+| After **clarify** | Questions and default recommendations persisted to `spec.md`. `review-clarify` pauses with `on_reject: retry`. Unanswered questions or failing checklists → **Pause**; clean → **continue to plan** |
 | After **plan** | Always run **tasks** |
 | After **tasks** | Always run **analyze** |
-| After **analyze** | **Pause** on any CRITICAL / HIGH / MEDIUM finding. Zero findings or only LOW → **continue immediately** to implement |
-| After **implement** | Run **converge**. If tasks were appended, implement then converge again (stop when converged, or after 3 passes) |
+| After **analyze** | Analysis report written to `analysis.md`. `review-analyze` pauses for checklist inspection. Zero findings or only LOW → **continue to implement** |
+| During **implement** | Step 2.5 auto-applies checked remediations from `analysis.md` before executing tasks |
+| After **implement** | Run **converge**. If tasks were appended, implement then converge again (stop when converged, or after 3 passes). When converged: auto-extracts ADR, consolidates living spec, and cleans transient files |
 
 A single slash command (`/speckit-plan` only, …) does **not** start the chain. `/speckit-checklist` stays optional and is not in the default chain.
 
 Overlays written into the new project:
 
-- `.agents/AGENTS.md` — canonical pipeline + autonomy rules
+- `.agents/AGENTS.md` — canonical pipeline + autonomy rules + remediation / ADR converge workflow
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` copy of the pause rules
-- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: drop the two review gates, insert clarify / analyze / converge. Official `workflow.yml` stays upgradable.
+- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: inserts clarify / analyze / converge, with non-destructive retry gates. Official `workflow.yml` stays upgradable.
 - `chained-sdd` preset — appends the **Autonomy & Spec Kit pipeline** principle onto `constitution-template` (local `--dev` install; not a catalog release). Unfilled `constitution.md` is seeded the same way.
 
 ### Model & Agent Routing per Stage

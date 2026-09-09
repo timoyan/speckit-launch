@@ -50,7 +50,7 @@ node speckit-launch/bin/new-project.mjs my-app --dir ~/projects --script sh
 
 預設安裝這些 Spec Kit 整合：
 
-`copilot`、`claude`、`cursor-agent`、`gemini`、`grok`、`codex`
+`copilot`、`claude`、`cursor-agent`、`gemini`、`grok`、`codex`、`agy`
 
 不必加 `--ai`。只有在只要單一 agent 時才用 `--only <integration>`。
 
@@ -96,14 +96,18 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 
 1. 確認 `specify` 可用（必要時 `uv tool install specify-cli`）
 2. `git init`（可選）
-3. 對第一個整合跑 `specify init`，其餘主流組合用 `specify integration install --force`（若有 `--only` 則只裝那一個）
-4. 把 `speckit-*` skills 去重收進 `.agents/skills`
-5. 寫入 `.agents/skills.json` 與 `.agents/AGENTS.md`（串接流程）
-6. 寫入 `.cursor/rules/speckit-pipeline.mdc`，並安裝 `.specify/workflows/overlays/speckit/chained-sdd.yml`（**不**覆蓋官方 bundled `workflow.yml`）
+3. 對第一個整合跑 `specify init`，其餘主流組合（含 `agy`）用 `specify integration install --force`（若有 `--only` 則只裝那一個）
+4. 把 `speckit-*` skills 去重收進 `.agents/skills` 並注入實戰增強能力：
+   - **澄清問題即時落地**：候選問題與預設建議即時寫入 `spec.md` 附帶可互動核取方塊。
+   - **結構化 `analysis.md` 稽核報告**：產出問題清單與用戶可編輯的修復清單（`- [x] R...`）。
+   - **實作前自動修復**：`implement` 在 Step 2.5 自動套用 `analysis.md` 中勾選的項目至規格與任務。
+   - **收斂完成自動 ADR 與活規格**：將架構決策萃取至 `docs/adr/`，將多個零散檔案扁平化為單一高訊噪比活規格（`specs/<id>-<name>.md`），並清除暫態檔案。
+5. 寫入 `.agents/skills.json` 與 `.agents/AGENTS.md`（串接流程、自動修復與模型分工）
+6. 寫入 `.cursor/rules/speckit-pipeline.mdc`，並安裝 `.specify/workflows/overlays/speckit/chained-sdd.yml`（具備 `review-clarify` 與 `review-analyze` 閘門，設定 `on_reject: retry` 避免致命中斷，且**不**覆蓋官方 bundled `workflow.yml`）
 7. 安裝本地 `chained-sdd` preset（`specify preset add --dev`），讓 `/speckit-constitution` 把流程原則 append 進憲章 scaffold。尚未填寫的 `constitution.md` 也會種入同一段。不複製別的專案已填好的 constitution。 **尚未** 發佈到 Spec Kit catalog。
 8. 若已存在 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.github/copilot-instructions.md`），補一段流程 pointer
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
-10. 把 skill-mount 規則合併進 `.gitignore`
+10. 把 skill-mount 與暫態執行檔規則（`specs/*/tasks.md`、`checklists/`、`analysis.md`）合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`），讓新專案在 Windows／macOS／Linux 都維持 LF
 
 它 **不會** 複製別的專案的產品憲章。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
@@ -115,25 +119,26 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 這個啟動器疊上實際專案在用的 **完整串接**：
 
 ```
-specify → clarify → plan → tasks → analyze → implement → converge
+specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
 ```
 
 | 步驟 | 預設行為 |
 |------|----------|
 | **specify** 之後 | 一定跑 **clarify**（不要跳去 plan） |
-| **clarify** 之後 | 僅當 `[NEEDS CLARIFICATION]` 還在、spec checklist 未過、或仍有 Outstanding／高影響項 → **暫停**。已經答完並寫進 spec 的題目不必再確認 → **立刻繼續** plan |
+| **clarify** 之後 | 問題與預設選項即時寫入 `spec.md`。`review-clarify` 閘門以 `on_reject: retry` 暫停。若有未答問題或 checklist 未過 → **暫停**；乾淨通過 → **繼續** plan |
 | **plan** 之後 | 一定跑 **tasks** |
 | **tasks** 之後 | 一定跑 **analyze** |
-| **analyze** 之後 | 任何 CRITICAL／HIGH／MEDIUM 發現 → **暫停**。零發現或只有 LOW → **立刻繼續** implement |
-| **implement** 之後 | 跑 **converge**。若有補上 tasks，再 implement 然後 converge（收斂就停，或最多 3 輪） |
+| **analyze** 之後 | 稽核報告寫入 `analysis.md`。`review-analyze` 閘門暫停供檢視修復項目。零發現或只有 LOW → **繼續** implement |
+| **implement** 期間 | Step 2.5 自動將 `analysis.md` 勾選的修復套用到規格與任務中再開始實作 |
+| **implement** 之後 | 跑 **converge**。若有補上 tasks，再 implement 然後 converge（最多 3 輪）。收斂完成時：自動萃取 ADR、扁平化活規格，並清理暫態檔案 |
 
 單一 slash command（只跑 `/speckit-plan` 等）**不會**啟動整條鏈。`/speckit-checklist` 維持可選，不在預設鏈裡。
 
 寫進新專案的 overlay：
 
-- `.agents/AGENTS.md` — 流程與自主推進的 canonical 規則
+- `.agents/AGENTS.md` — 流程與自主推進的 canonical 規則，以及修復與 ADR 萃取流程
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` 的暫停規則
-- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：拿掉兩道 review gate，插入 clarify／analyze／converge。官方 `workflow.yml` 仍可單獨升級
+- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：插入 clarify／analyze／converge，並設置非破壞性重試閘門。官方 `workflow.yml` 仍可單獨升級
 - `chained-sdd` preset — 把 **Autonomy & Spec Kit pipeline** 原則 append 到 `constitution-template`（本地 `--dev` 安裝；不是 catalog 發行）。尚未填寫的 `constitution.md` 同樣種入
 
 ### 各階段模型與 Agent 分工 (Model & Agent Routing)

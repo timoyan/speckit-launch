@@ -31,11 +31,12 @@ Questions that were asked **and answered** this session, and already written int
 
 ## After `/speckit-analyze`
 
-Analyze is read-only. Do not edit files from analyze itself. In a chained run, do **not** ask extra “would you like remediations?” questions — the pause rules below already decide whether to stop.
-
-**Pause and wait for the user** if the report has any **CRITICAL**, **HIGH**, or **MEDIUM** finding. Show the findings table (or a short subset) and ask whether to fix first or proceed to `/speckit-implement`. Do **not** start implement until they confirm.
-
-**Continue immediately to `/speckit-implement`** if there are **zero** findings, or **only LOW** (wording / style). Say one line that analyze is clean, then run implement.
+Analyze writes a structured report to `specs/<feature>/analysis.md` with an actionable `## 4. Remediation Action Checklist`.
+- In a chained run, `review-analyze` pauses so the user can open `specs/<feature>/analysis.md`.
+- **Auto-Remediation Workflow**:
+  - The user can review proposed fixes directly in `analysis.md` (keep `[x]` to auto-remediate, or uncheck `[ ]` to skip).
+  - When the user confirms `proceed`, `speckit-implement` automatically applies the checked remediation items to `spec.md` / `plan.md` / `tasks.md` before coding begins.
+- **Continue immediately to `/speckit-implement`** if there are **zero** findings, or **only LOW** (wording / style). Say one line that analyze is clean, then run implement.
 
 ## Other steps
 
@@ -44,8 +45,10 @@ Analyze is read-only. Do not edit files from analyze itself. In a chained run, d
 - `tasks` → always run `analyze` next in a chained run.
 - `implement` → run `converge` when the current task list is done.
 - `converge` → if tasks were appended, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
-
-Implementation details after a green analyze stay autonomous. Do not add extra “does this plan look OK?” gates unless clarify/analyze actually flagged issues.
+- **After `converge` succeeds with zero findings (Converged)**:
+  - **Auto-Extract ADR**: Automatically extract architectural decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
+  - **Flatten Feature into Single Consolidated Spec**: Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal document `specs/<feature-id>-<name>.md` optimized for future AI context retrieval, then remove the transient `specs/<feature-dir>/` folder.
+  - Ask for user confirmation only if a major architectural conflict was detected during extraction.
 
 ## Model & capability tier routing
 

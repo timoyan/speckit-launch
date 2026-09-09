@@ -4,8 +4,8 @@
 # wiping the chained SDD steps.
 #
 # Official base: specify → review-spec → plan → review-plan → tasks → implement
-# After this overlay: specify → clarify → plan → tasks → analyze → implement → converge
-# Agent pause rules stay in AGENTS.md / speckit-pipeline.mdc (not YAML gates).
+# After this overlay: specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
+# Gate policy: on_reject: retry allows inspection / re-eval without workflow abort.
 #
 # ==============================================================================
 # Model & Integration Policy (模型與 Agent 配置原則):
@@ -46,9 +46,19 @@ edits:
         args: "{{ inputs.spec }}"
 
   # ----------------------------------------------------------------------------
-  # 移除官方硬性 review gates (改由 AGENTS.md / speckit-pipeline.mdc 智慧暫停)
+  # Step 2b: review-clarify (互動式規格確認閘門；retry 避免永久中斷)
   # ----------------------------------------------------------------------------
-  - remove: review-spec
+  - replace: review-spec
+    step:
+      id: review-clarify
+      type: gate
+      message: "Review clarification questions and spec.md in terminal. Confirm to proceed to architectural planning?"
+      options: [proceed, abort]
+      on_reject: retry
+
+  # ----------------------------------------------------------------------------
+  # 移除架構前贅餘 review gate（以 clarify 閘門為準）
+  # ----------------------------------------------------------------------------
   - remove: review-plan
 
   # ----------------------------------------------------------------------------
@@ -88,6 +98,17 @@ edits:
       # model: "gemini-2.5-pro" # 建議：大 Context 視窗模型（未指定時由 Agent 動態決定）
       input:
         args: "{{ inputs.spec }}"
+
+  # ----------------------------------------------------------------------------
+  # Step 5b: review-analyze (稽核確認閘門；可勾選自動修復項目；retry 避免永久中斷)
+  # ----------------------------------------------------------------------------
+  - insert_before: implement
+    step:
+      id: review-analyze
+      type: gate
+      message: "Review audit report in specs/<feature>/analysis.md. Keep [x] to auto-remediate or uncheck [ ] in analysis.md before confirming. Proceed to implementation?"
+      options: [proceed, abort]
+      on_reject: retry
 
   # ----------------------------------------------------------------------------
   # Step 6: implement (程式碼循序實作)

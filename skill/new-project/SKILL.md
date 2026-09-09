@@ -2,7 +2,7 @@
 name: new-project
 description: >-
   Launch a new Spec Kit project with mainstream AI agent integrations
-  (Copilot, Claude, Cursor, Gemini, Grok, Codex) and shared skill mounts.
+  (Copilot, Claude, Cursor, Gemini, Grok, Codex, Antigravity) and shared skill mounts.
   Use when the user asks to open/create/launch a new project, bootstrap Spec Kit,
   or run new-project / speckit-launch.
 ---
@@ -32,7 +32,7 @@ Do **not** re-implement `specify init` by hand.
 
 By default the launcher installs mainstream integrations:
 
-`copilot`, `claude`, `cursor-agent`, `gemini`, `grok`, `codex`
+`copilot`, `claude`, `cursor-agent`, `gemini`, `grok`, `codex`, `agy`
 
 Do **not** ask the user for `--ai`. Only pass `--only <integration>` if they explicitly want a single agent.
 
