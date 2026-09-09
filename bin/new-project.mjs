@@ -49,9 +49,17 @@ function copyTextFile(from, to) {
   writeText(to, readText(from));
 }
 
+function safeRealpath(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
 function pathsEqual(a, b) {
-  const na = resolve(a).replace(/\\/g, "/");
-  const nb = resolve(b).replace(/\\/g, "/");
+  const na = safeRealpath(a).replace(/\\/g, "/");
+  const nb = safeRealpath(b).replace(/\\/g, "/");
   return IS_WINDOWS ? na.toLowerCase() === nb.toLowerCase() : na === nb;
 }
 
@@ -244,7 +252,27 @@ function integrationsToInstall(opts) {
 }
 
 function installIntegrations(projectRoot, keys, script) {
-  const [primary, ...rest] = keys;
+  const integrationJsonPath = join(projectRoot, ".specify", "integration.json");
+  const initOptionsJsonPath = join(projectRoot, ".specify", "init-options.json");
+  let preferred = null;
+  try {
+    if (existsSync(integrationJsonPath)) {
+      const data = JSON.parse(readText(integrationJsonPath));
+      preferred = data.default_integration || data.integration;
+    } else if (existsSync(initOptionsJsonPath)) {
+      const data = JSON.parse(readText(initOptionsJsonPath));
+      preferred = data.integration || data.ai;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let order = [...keys];
+  if (preferred && order.includes(preferred)) {
+    order = [preferred, ...order.filter((k) => k !== preferred)];
+  }
+
+  const [primary, ...rest] = order;
   run(
     "specify",
     [
@@ -279,6 +307,25 @@ function installIntegrations(projectRoot, keys, script) {
       }
     }
   }
+
+  if (preferred) {
+    try {
+      if (existsSync(integrationJsonPath)) {
+        const data = JSON.parse(readText(integrationJsonPath));
+        data.default_integration = preferred;
+        data.integration = preferred;
+        writeText(integrationJsonPath, JSON.stringify(data, null, 2) + "\n");
+      }
+      if (existsSync(initOptionsJsonPath)) {
+        const data = JSON.parse(readText(initOptionsJsonPath));
+        data.integration = preferred;
+        data.ai = preferred;
+        writeText(initOptionsJsonPath, JSON.stringify(data, null, 2) + "\n");
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function moveSpeckitSkills(projectRoot) {
@@ -294,6 +341,7 @@ function moveSpeckitSkills(projectRoot) {
 
   for (const srcRoot of candidates) {
     if (!existsSync(srcRoot)) continue;
+    if (pathsEqual(srcRoot, canonical)) continue;
     const names = listSpeckitSkillDirs(srcRoot);
     for (const name of names) {
       const from = join(srcRoot, name);
@@ -800,14 +848,6 @@ export {
   defaultScript,
   usage,
 };
-
-function safeRealpath(p) {
-  try {
-    return realpathSync(p);
-  } catch {
-    return resolve(p);
-  }
-}
 
 const isDirectRun = Boolean(
   process.argv[1] &&
