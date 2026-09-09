@@ -227,8 +227,14 @@ Append to the **end** of `tasks.md`, per the append contract:
 - Do **not** modify `tasks.md` at all — no empty phase header.
 - Report: **"✅ Converged — the implementation satisfies the spec, plan, and tasks."**
 - Include the summary counts of what was checked.
-- **Auto-Extract ADR & Consolidate Living Spec**:
-  - Check if `docs/adr/<feature-id>-*.md` already exists for this feature; if not, distill key architectural choices, trade-offs, and decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
+- **Auto-Extract ADR, Clean Transient Artifacts & Consolidate Living Spec**:
+  - **Auto-Extract ADR**: Check if `docs/adr/<feature-id>-*.md` already exists for this feature; if not, distill key architectural choices, trade-offs, and decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
+  - **Remove Transient Execution Artifacts**:
+    - Once ADR extraction is complete, delete all transient execution and audit artifacts:
+      - `tasks.md` (`FEATURE_DIR/tasks.md`)
+      - `checklists/` directory (`FEATURE_DIR/checklists/`)
+      - `analysis.md` (`FEATURE_DIR/analysis.md`)
+    - These artifacts served their purpose during implementation, review, and verification. Removing them ensures they do not linger as obsolete clutter in git tracking or future context retrieval.
   - **Flatten Feature into Single Consolidated Spec (`specs/<feature-id>-<name>.md`)**:
     - Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal markdown document at `specs/<feature-id>-<name>.md` optimized for future AI context retrieval.
     - Contents: 1. Overview & Requirements, 2. Data Model, 3. API Contracts, 4. Architecture & ADR Link.
@@ -239,7 +245,7 @@ Append to the **end** of `tasks.md`, per the append contract:
 - On `tasks_appended`: state how many tasks were appended under which phase, and recommend
   running `/speckit-implement` to complete them; note that a follow-up converge
   run will find fewer or no remaining items.
-- On `converged`: report that ADR has been extracted and recommend proceeding to review / git commit / opening a PR. No further implement pass
+- On `converged`: report that ADR has been extracted, transient execution artifacts (`tasks.md`, `checklists/`, `analysis.md`) have been removed, and living spec has been consolidated. Recommend proceeding to review / git commit / opening a PR. No further implement pass
   is needed for this feature's specified scope.
 
 ### 9. Check for extension hooks

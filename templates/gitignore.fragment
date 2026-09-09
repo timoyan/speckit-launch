@@ -6,11 +6,6 @@
 # Spec Kit workflow runs and execution state
 .specify/workflows/runs/
 
-# Spec Kit transient execution tasks, checklists, and analysis reports (ADR + Spec kept as source of truth)
-specs/*/tasks.md
-specs/*/checklists/
-specs/*/analysis.md
-
 # Grok local credentials and session state
 .grok/auth.json
 .grok/mcp_credentials.json

@@ -42,7 +42,7 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
 - `converge` → if tasks were appended, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
 - **After `converge` succeeds with zero findings (Converged)**:
   - **Auto-Extract ADR**: Automatically extract architectural decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
-  - **Flatten Feature into Single Consolidated Spec**: Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal document `specs/<feature-id>-<name>.md` optimized for future AI context retrieval, then remove the transient `specs/<feature-dir>/` folder.
+  - **Remove Transient Artifacts & Flatten Living Spec**: Once ADR extraction is complete, remove transient execution artifacts (`tasks.md`, `checklists/`, `analysis.md`). Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal document `specs/<feature-id>-<name>.md` optimized for future AI context retrieval, then remove the transient `specs/<feature-dir>/` folder.
   - Ask for user confirmation only if a major architectural conflict was detected during extraction.
 
 ### Model & capability tier routing

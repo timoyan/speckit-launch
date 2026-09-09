@@ -160,3 +160,23 @@ test("presets/chained-sdd/install.mjs guards against non-speckit directory", () 
   assert.notEqual(r.status, 0);
   assert.ok(r.stderr.includes("missing .specify/ directory"));
 });
+
+test("templates/gitignore.fragment does not ignore transient specs (tasks, checklists, analysis)", () => {
+  const fragmentPath = join(ROOT, "templates", "gitignore.fragment");
+  assert.ok(existsSync(fragmentPath));
+  const content = readFileSync(fragmentPath, "utf8");
+  assert.ok(!content.includes("specs/*/tasks.md"), "tasks.md should not be in gitignore.fragment");
+  assert.ok(!content.includes("specs/*/checklists/"), "checklists/ should not be in gitignore.fragment");
+  assert.ok(!content.includes("specs/*/analysis.md"), "analysis.md should not be in gitignore.fragment");
+});
+
+test("speckit-converge ensures transient execution artifacts are removed after ADR extraction", () => {
+  const convergeSkillPath = join(ROOT, "presets", "chained-sdd", "skills", "speckit-converge", "SKILL.md");
+  assert.ok(existsSync(convergeSkillPath));
+  const content = readFileSync(convergeSkillPath, "utf8");
+  assert.ok(content.includes("Auto-Extract ADR"), "converge must extract ADR");
+  assert.ok(content.includes("FEATURE_DIR/tasks.md"), "converge must remove FEATURE_DIR/tasks.md");
+  assert.ok(content.includes("FEATURE_DIR/checklists/"), "converge must remove FEATURE_DIR/checklists/");
+  assert.ok(content.includes("FEATURE_DIR/analysis.md"), "converge must remove FEATURE_DIR/analysis.md");
+});
+

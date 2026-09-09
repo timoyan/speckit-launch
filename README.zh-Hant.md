@@ -110,7 +110,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 7. 安裝本地 `chained-sdd` preset（`specify preset add --dev`），讓 `/speckit-constitution` 把流程原則 append 進憲章 scaffold。尚未填寫的 `constitution.md` 也會種入同一段。不複製別的專案已填好的 constitution。 **尚未** 發佈到 Spec Kit catalog。
 8. 若已存在 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.github/copilot-instructions.md`），補一段流程 pointer
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
-10. 把 skill-mount 與暫態執行檔規則（`specs/*/tasks.md`、`checklists/`、`analysis.md`）合併進 `.gitignore`
+10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`），讓新專案在 Windows／macOS／Linux 都維持 LF
 
 它 **不會** 複製別的專案的產品憲章。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
@@ -238,7 +238,7 @@ speckit-launch/
 ├── templates/                               # 【純專案 Repo 基礎架構 Scaffolding】
 │   ├── AGENTS.md                            # 專案 Agent 基礎骨架（初始化時自動注入連鎖 SDD 規則）
 │   ├── gitattributes.fragment               # 跨平台 LF 換行宣告 (* text=auto eol=lf)
-│   ├── gitignore.fragment                   # 包含暫態 spec 執行檔的 Git 忽略清單
+│   ├── gitignore.fragment                   # Gitignore 範本（擴充套件快取、skill 掛載、本地憑證）
 │   └── skills.json                          # .agents/skills 目錄清冊元數據
 ├── skill/new-project/
 │   └── SKILL.md                             # 供 Agent 自主呼叫 speckit-launch 的技能定義

@@ -110,7 +110,7 @@ Named projects are created under the **current working directory** unless `--dir
 7. Installs the local `chained-sdd` preset (`specify preset add --dev`) so `/speckit-constitution` appends the pipeline principle. Also seeds an unfilled `constitution.md`. Does not copy another project's filled constitution. **Not** published to a Spec Kit catalog.
 8. Merges a short pipeline pointer into existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) if those files already exist
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
-10. Merges skill-mount and transient execution rules (`specs/*/tasks.md`, `checklists/`, `analysis.md`) into `.gitignore`
+10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`) so generated projects keep LF on Windows / macOS / Linux
 
 It does **not** copy another project's product constitution. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
@@ -238,7 +238,7 @@ speckit-launch/
 ├── templates/                               # [Pure Repository Infrastructure Scaffolding]
 │   ├── AGENTS.md                            # Base agent autonomy scaffolding (pipeline rules injected at launch)
 │   ├── gitattributes.fragment               # Cross-platform LF line endings (* text=auto eol=lf)
-│   ├── gitignore.fragment                   # Gitignore including transient spec artifacts
+│   ├── gitignore.fragment                   # Gitignore template (extension caches, skill-mounts, local credentials)
 │   └── skills.json                          # Shared .agents/skills catalog metadata
 ├── skill/new-project/
 │   └── SKILL.md                             # Agent user skill for invoking speckit-launch
