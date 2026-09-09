@@ -461,7 +461,8 @@ function writeCursorPipelineRule(projectRoot) {
   const destDir = join(projectRoot, ".cursor", "rules");
   mkdirSync(destDir, { recursive: true });
   const dest = join(destDir, "speckit-pipeline.mdc");
-  copyTextFile(join(TEMPLATES, "speckit-pipeline.mdc"), dest);
+  const src = join(STARTER_ROOT, "presets", "chained-sdd", "rules", "speckit-pipeline.mdc");
+  copyTextFile(src, dest);
   console.log("wrote .cursor/rules/speckit-pipeline.mdc");
 }
 
@@ -493,7 +494,7 @@ function overlaySpeckitWorkflow(projectRoot) {
     return;
   }
 
-  const overlaySrc = join(TEMPLATES, "speckit-overlay.yml");
+  const overlaySrc = join(STARTER_ROOT, "presets", "chained-sdd", "workflows", "chained-sdd.yml");
   const destDir = join(projectRoot, ".specify", "workflows", "overlays", "speckit");
   const dest = join(destDir, "chained-sdd.yml");
   mkdirSync(destDir, { recursive: true });

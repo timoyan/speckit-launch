@@ -2,8 +2,14 @@
 
 Local Spec Kit preset (not published to a catalog). Bundles the complete **Chained SDD** workflow methodology:
 
-1. **Autonomy & Spec Kit pipeline principle**: Appends the chained SDD principle onto the core `constitution-template` (`templates/constitution-pipeline.md`).
-2. **Enhanced Workflow Skills (`skills/`)**:
+1. **Workflow Overlay (`workflows/chained-sdd.yml`)**:
+   - Chained SDD step graph (`specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge`).
+   - Non-destructive interactive review gates with `on_reject: retry`.
+2. **Agent Execution Rules (`rules/speckit-pipeline.mdc`)**:
+   - Cursor and coding agent guidelines for chained execution, pause conditions, remediation workflows, and model routing.
+3. **Autonomy & Spec Kit pipeline principle (`templates/constitution-pipeline.md`)**:
+   - Appends the chained SDD principle onto the project `constitution-template`.
+4. **Enhanced Workflow Skills (`skills/`)**:
    - `speckit-clarify`: Immediate question persistence and default recommendations in `spec.md`.
    - `speckit-analyze`: Persistent `analysis.md` audit report with actionable user-editable remediation checklists.
    - `speckit-implement`: Step 2.5 auto-apply remediation before executing tasks.
