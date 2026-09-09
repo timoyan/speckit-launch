@@ -202,6 +202,40 @@ node scripts/link-agent-skills.mjs
 
 （可選：在該專案的 `package.json` 加 `"postinstall": "node scripts/link-agent-skills.mjs"`。）
 
+## 多 Agent / 多分支並行指南 (Git Worktree)
+
+Spec Kit 的連鎖 SDD 流程（`specify → clarify → plan → tasks → analyze → implement → converge`）產物完全相對隔離在 `specs/<feature>/` 中，各階段無全域狀態鎖定。
+
+若要讓多個 AI Agent 同時並行開發多個 Feature 分支，**切勿在同一個工作目錄中切換 branch**（避免 Git 衝突與 Feature 錨定錯亂），請使用 Git Worktree 進行目錄隔離：
+
+### 1. 一鍵建立並行工作目錄
+啟動器已內建 Worktree 輔助腳本，自動建立新目錄、簽出分支並掛載 Agent Skills：
+
+```bash
+# 建立 feature 分支目錄（預設建立在 ../<repo>-<branch>）
+node scripts/new-worktree.mjs 002-billing
+
+# 或指定自訂目錄
+node scripts/new-worktree.mjs 002-billing ../my-app-billing
+
+# 若專案有 package.json，亦可使用：
+npm run worktree:new -- 002-billing
+```
+
+### 2. 在獨立目錄各自推進
+在各目錄中打開獨立的 Agent 終端或 IDE 視窗（Cursor, Claude Code, Antigravity 等），各自執行連鎖流程：
+```bash
+cd ../my-app-billing
+# 開始執行
+/speckit-specify <需求描述>
+```
+
+### 3. 完成與清理
+各分支各自收斂 (`converge`)、發 PR 並 Merge 回主幹後，清理該目錄：
+```bash
+git worktree remove ../my-app-billing
+```
+
 ## 使用者層級的 agent skill
 
 把 [`skill/new-project/SKILL.md`](skill/new-project/SKILL.md) 複製到你的 agent 使用者 skills 目錄（例如 `~/.cursor/skills/new-project/` 或 `~/.claude/skills/new-project/`）。
@@ -217,7 +251,8 @@ speckit-launch/
 ├── bin/
 │   └── new-project.mjs                      # 主啟動器 CLI 流程調度核心
 ├── scripts/
-│   └── link-agent-skills.mjs                # OS 層級符號連結／Junction 掛載工具
+│   ├── link-agent-skills.mjs                # OS 層級符號連結／Junction 掛載工具
+│   └── new-worktree.mjs                     # 自動化 Git Worktree 隔離與技能掛載工具
 ├── presets/chained-sdd/                     # 【自包含 Chained SDD 方法論完整套件】
 │   ├── preset.yml                           # Spec Kit Preset 宣告清單
 │   ├── install.mjs                          # 獨立 Preset 安裝腳本（注入既有專案）

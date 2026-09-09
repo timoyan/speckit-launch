@@ -180,3 +180,20 @@ test("speckit-converge ensures transient execution artifacts are removed after A
   assert.ok(content.includes("FEATURE_DIR/analysis.md"), "converge must remove FEATURE_DIR/analysis.md");
 });
 
+test("scripts/new-worktree.mjs integrity and help output", () => {
+  const scriptPath = join(ROOT, "scripts", "new-worktree.mjs");
+  assert.ok(existsSync(scriptPath), "new-worktree.mjs must exist");
+
+  const rHelp = spawnSync(process.execPath, [scriptPath, "--help"], {
+    encoding: "utf8",
+  });
+  assert.equal(rHelp.status, 0);
+  assert.ok(rHelp.stdout.includes("Usage:"));
+  assert.ok(rHelp.stdout.includes("worktree"));
+
+  const rNoArgs = spawnSync(process.execPath, [scriptPath], {
+    encoding: "utf8",
+  });
+  assert.notEqual(rNoArgs.status, 0);
+});
+

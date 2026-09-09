@@ -202,6 +202,40 @@ node scripts/link-agent-skills.mjs
 
 (Optional: add `"postinstall": "node scripts/link-agent-skills.mjs"` in that project's `package.json`.)
 
+## Multi-Agent / Multi-Branch Parallelism (Git Worktree)
+
+Spec Kit's chained SDD pipeline (`specify → clarify → plan → tasks → analyze → implement → converge`) produces artifacts scoped strictly inside `specs/<feature>/`, without global locks.
+
+To have multiple AI agents work on separate feature branches concurrently, **do not switch branches inside the same working directory** (which causes Git state collisions and feature anchoring mismatches). Instead, use Git Worktrees:
+
+### 1. One-command isolated worktree setup
+The launcher includes a helper script that automatically creates the worktree, checks out the branch, and mounts agent skills:
+
+```bash
+# Create a worktree for a branch (defaults to ../<repo>-<branch>)
+node scripts/new-worktree.mjs 002-billing
+
+# Or specify a custom directory
+node scripts/new-worktree.mjs 002-billing ../my-app-billing
+
+# Or via npm script if package.json exists:
+npm run worktree:new -- 002-billing
+```
+
+### 2. Independent execution per directory
+Open each directory in a separate agent terminal or IDE window (Cursor, Claude Code, Antigravity, etc.) and run the chained pipeline independently:
+```bash
+cd ../my-app-billing
+# Run specify to kick off the pipeline
+/speckit-specify <feature description>
+```
+
+### 3. Cleanup after completion
+Once the feature converges (`converge`), is reviewed via PR, and merged to main, remove the worktree:
+```bash
+git worktree remove ../my-app-billing
+```
+
 ## User-level agent skill
 
 Copy [`skill/new-project/SKILL.md`](skill/new-project/SKILL.md) into your agent's user skills directory (for example `~/.cursor/skills/new-project/` or `~/.claude/skills/new-project/`).
@@ -217,7 +251,8 @@ speckit-launch/
 ├── bin/
 │   └── new-project.mjs                      # Main launcher CLI orchestrator
 ├── scripts/
-│   └── link-agent-skills.mjs                # OS junction / symlink mount utility
+│   ├── link-agent-skills.mjs                # OS junction / symlink mount utility
+│   └── new-worktree.mjs                     # Automated Git Worktree isolation & skill mount tool
 ├── presets/chained-sdd/                     # [Self-Contained Chained SDD Methodology Bundle]
 │   ├── preset.yml                           # Spec Kit Preset declaration
 │   ├── install.mjs                          # Standalone preset installer for existing projects

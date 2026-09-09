@@ -1,6 +1,6 @@
 {
   "name": "speckit-launch",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Launch GitHub Spec Kit projects with mainstream AI agent integrations (OS-agnostic)",
   "type": "module",
   "bin": {
@@ -31,6 +31,8 @@
     "start": "node bin/new-project.mjs",
     "version": "node bin/new-project.mjs --version",
     "link": "npm link",
-    "unlink": "npm unlink -g speckit-launch"
+    "unlink": "npm unlink -g speckit-launch",
+    "link-skills": "node scripts/link-agent-skills.mjs",
+    "worktree:new": "node scripts/new-worktree.mjs"
   }
 }

@@ -779,12 +779,41 @@ function mergePipelinePointerIntoAgentDocs(projectRoot) {
   }
 }
 
-function copyLinkScript(projectRoot) {
+function copyHelperScripts(projectRoot) {
   const scriptsDir = join(projectRoot, "scripts");
   mkdirSync(scriptsDir, { recursive: true });
-  const dest = join(scriptsDir, "link-agent-skills.mjs");
-  copyTextFile(join(STARTER_ROOT, "scripts", "link-agent-skills.mjs"), dest);
-  console.log("copied scripts/link-agent-skills.mjs");
+  for (const scriptName of ["link-agent-skills.mjs", "new-worktree.mjs"]) {
+    const src = join(STARTER_ROOT, "scripts", scriptName);
+    const dest = join(scriptsDir, scriptName);
+    if (existsSync(src)) {
+      copyTextFile(src, dest);
+      console.log(`copied scripts/${scriptName}`);
+    }
+  }
+}
+
+function updatePackageJsonScripts(projectRoot) {
+  const pkgPath = join(projectRoot, "package.json");
+  if (!existsSync(pkgPath)) return;
+  try {
+    const pkg = JSON.parse(readText(pkgPath));
+    pkg.scripts = pkg.scripts || {};
+    let changed = false;
+    if (!pkg.scripts["link-skills"]) {
+      pkg.scripts["link-skills"] = "node scripts/link-agent-skills.mjs";
+      changed = true;
+    }
+    if (!pkg.scripts["worktree:new"]) {
+      pkg.scripts["worktree:new"] = "node scripts/new-worktree.mjs";
+      changed = true;
+    }
+    if (changed) {
+      writeText(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+      console.log("updated package.json with helper scripts (link-skills, worktree:new)");
+    }
+  } catch {
+    /* continue */
+  }
 }
 
 function runLinkScript(projectRoot) {
@@ -854,8 +883,9 @@ async function main() {
   const presetInstalled = installChainedSddPreset(projectRoot);
   seedConstitutionPipeline(projectRoot, { presetInstalled });
   mergePipelinePointerIntoAgentDocs(projectRoot);
-  copyLinkScript(projectRoot);
+  copyHelperScripts(projectRoot);
   runLinkScript(projectRoot);
+  updatePackageJsonScripts(projectRoot);
   mergeGitignore(projectRoot);
   mergeGitattributes(projectRoot);
 
@@ -903,6 +933,9 @@ Next steps:
 
 After clone on another machine:
   node scripts/link-agent-skills.mjs
+
+Parallel multi-branch development (Git Worktree):
+  node scripts/new-worktree.mjs <branch-name>
 
 Re-launch later:
   node ${join(STARTER_ROOT, "bin", "new-project.mjs")} <name>
