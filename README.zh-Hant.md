@@ -222,6 +222,7 @@ speckit-launch/
 │   ├── workflows/
 │   │   └── chained-sdd.yml                  # SDD 狀態圖定義與重試審核閘門
 │   ├── rules/
+│   │   ├── pipeline-rules.md                # 連鎖 SDD 規則與模型分工單一事實來源 (SSOT)
 │   │   └── speckit-pipeline.mdc             # Agent 推進與暫停決策規則 (Cursor alwaysApply)
 │   ├── templates/
 │   │   └── constitution-pipeline.md         # 注入憲章的連鎖自主原則
@@ -231,7 +232,7 @@ speckit-launch/
 │       ├── speckit-implement/SKILL.md       # Step 2.5 實作前自動套用修復
 │       └── speckit-converge/SKILL.md        # 自動 ADR 萃取與單檔活規格 (Living Spec) 扁平化
 ├── templates/                               # 【純專案 Repo 基礎架構 Scaffolding】
-│   ├── AGENTS.md                            # 專案 Agent 自治方針與模型能力分工引導
+│   ├── AGENTS.md                            # 專案 Agent 基礎骨架（初始化時自動注入連鎖 SDD 規則）
 │   ├── gitattributes.fragment               # 跨平台 LF 換行宣告 (* text=auto eol=lf)
 │   ├── gitignore.fragment                   # 包含暫態 spec 執行檔的 Git 忽略清單
 │   └── skills.json                          # .agents/skills 目錄清冊元數據

@@ -1,9 +1,4 @@
----
-description: Spec Kit chained pipeline — pause after clarify/analyze only when issues remain
-alwaysApply: true
----
-
-# Spec Kit automation pipeline
+### Chained run
 
 When the user starts a **new feature** or a **full Spec Kit run** (`/speckit-specify`, "run speckit", "build this feature"), chain commands in this order. Do **not** skip clarify or analyze.
 
@@ -15,7 +10,7 @@ A **single** slash command (`/speckit-plan` only, `/speckit-analyze` only, …) 
 
 `/speckit-checklist` is optional extra requirements-quality review. It is **not** part of the default chain.
 
-## After `/speckit-clarify`
+### After `/speckit-clarify`
 
 **Pause and wait for the user** if any of these are still true after clarify finishes:
 
@@ -29,7 +24,7 @@ Questions that were asked **and answered** this session, and already written int
 
 **Continue immediately to `/speckit-plan`** if clarify reported no critical ambiguities, the checklist passes, and nothing Outstanding remains. Say one line that you are continuing, then run plan.
 
-## After `/speckit-analyze`
+### After `/speckit-analyze`
 
 Analyze writes a structured report to `specs/<feature>/analysis.md` with an actionable `## 4. Remediation Action Checklist`.
 - In a chained run, `review-analyze` pauses so the user can open `specs/<feature>/analysis.md`.
@@ -38,7 +33,7 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
   - When the user confirms `proceed`, `speckit-implement` automatically applies the checked remediation items to `spec.md` / `plan.md` / `tasks.md` before coding begins.
 - **Continue immediately to `/speckit-implement`** if there are **zero** findings, or **only LOW** (wording / style). Say one line that analyze is clean, then run implement.
 
-## Other steps
+### Other steps
 
 - `specify` → always run `clarify` next in a chained run (do not jump to plan).
 - `plan` → always run `tasks` next in a chained run.
@@ -50,7 +45,7 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
   - **Flatten Feature into Single Consolidated Spec**: Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal document `specs/<feature-id>-<name>.md` optimized for future AI context retrieval, then remove the transient `specs/<feature-dir>/` folder.
   - Ask for user confirmation only if a major architectural conflict was detected during extraction.
 
-## Model & capability tier routing
+### Model & capability tier routing
 
 Match the model tier to each stage for optimal cost, speed, and accuracy:
 

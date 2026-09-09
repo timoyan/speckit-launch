@@ -427,6 +427,14 @@ specify → clarify → plan → tasks → analyze → implement → converge
 Pause after clarify/analyze only when issues remain. A single slash command does not start the chain.
 `;
 
+function getPipelineRules() {
+  const rulesPath = join(STARTER_ROOT, "presets", "chained-sdd", "rules", "pipeline-rules.md");
+  if (existsSync(rulesPath)) {
+    return readText(rulesPath).trim();
+  }
+  return "";
+}
+
 function writeAgentsFiles(projectRoot) {
   const agentsDir = join(projectRoot, ".agents");
   mkdirSync(agentsDir, { recursive: true });
@@ -439,8 +447,11 @@ function writeAgentsFiles(projectRoot) {
 
   const agentsMd = join(agentsDir, "AGENTS.md");
   const template = readText(join(TEMPLATES, "AGENTS.md"));
+  const pipelineRules = getPipelineRules();
+  const pipelineBlock = pipelineRules ? `${PIPELINE_MARKER}\n\n${pipelineRules}` : PIPELINE_MARKER;
+
   if (!existsSync(agentsMd)) {
-    writeText(agentsMd, template);
+    writeText(agentsMd, template.replace(PIPELINE_MARKER, pipelineBlock));
     console.log("wrote .agents/AGENTS.md");
     return;
   }
@@ -451,9 +462,8 @@ function writeAgentsFiles(projectRoot) {
     return;
   }
 
-  const markerAt = template.indexOf(PIPELINE_MARKER);
-  const insert = "\n\n" + (markerAt >= 0 ? template.slice(markerAt) : template);
-  writeText(agentsMd, existing.trimEnd() + insert);
+  const sep = existing.endsWith("\n") ? "\n" : "\n\n";
+  writeText(agentsMd, existing.trimEnd() + sep + pipelineBlock + "\n");
   console.log("merged Spec Kit pipeline into .agents/AGENTS.md");
 }
 
@@ -462,7 +472,21 @@ function writeCursorPipelineRule(projectRoot) {
   mkdirSync(destDir, { recursive: true });
   const dest = join(destDir, "speckit-pipeline.mdc");
   const src = join(STARTER_ROOT, "presets", "chained-sdd", "rules", "speckit-pipeline.mdc");
-  copyTextFile(src, dest);
+  if (existsSync(src)) {
+    copyTextFile(src, dest);
+  } else {
+    const rules = getPipelineRules();
+    const content = `---
+description: Spec Kit chained pipeline — pause after clarify/analyze only when issues remain
+alwaysApply: true
+---
+
+# Spec Kit automation pipeline
+
+${rules}
+`;
+    writeText(dest, content);
+  }
   console.log("wrote .cursor/rules/speckit-pipeline.mdc");
 }
 

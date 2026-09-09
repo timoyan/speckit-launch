@@ -222,6 +222,7 @@ speckit-launch/
 │   ├── workflows/
 │   │   └── chained-sdd.yml                  # SDD step graph with retry review gates
 │   ├── rules/
+│   │   ├── pipeline-rules.md                # Single source of truth for chained SDD rules
 │   │   └── speckit-pipeline.mdc             # Agent chained pause/continue rules (Cursor)
 │   ├── templates/
 │   │   └── constitution-pipeline.md         # Seeded pipeline principle for constitution
@@ -231,7 +232,7 @@ speckit-launch/
 │       ├── speckit-implement/SKILL.md       # Step 2.5 auto-remediation application
 │       └── speckit-converge/SKILL.md        # Automated ADR extraction & living spec consolidation
 ├── templates/                               # [Pure Repository Infrastructure Scaffolding]
-│   ├── AGENTS.md                            # Agent autonomy & capability routing rules
+│   ├── AGENTS.md                            # Base agent autonomy scaffolding (pipeline rules injected at launch)
 │   ├── gitattributes.fragment               # Cross-platform LF line endings (* text=auto eol=lf)
 │   ├── gitignore.fragment                   # Gitignore including transient spec artifacts
 │   └── skills.json                          # Shared .agents/skills catalog metadata
