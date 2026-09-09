@@ -84,12 +84,15 @@ npm run unlink        # equivalent to npm unlink -g speckit-launch
 |------|-------------|
 | `--here` | Initialize in the current directory (or `--dir` if set) |
 | `--dir <path>` | Parent directory for `<name>`, or target path with `--here` |
-| `--only <integration>` | Install only this Spec Kit integration (skip the mainstream set) |
+| `--primary <agent>` | Set the primary/default AI agent (e.g. `agy`, `claude`, `cursor-agent`) while installing all mainstream integrations |
+| `--only <agent>` | Install only this Spec Kit integration (skip the mainstream set) |
+| `--non-interactive` | Skip interactive prompt and use auto-detected defaults |
 | `--script sh\|ps\|py` | Helper script type (default: `ps` on Windows, `sh` elsewhere) |
 | `--no-git` | Skip `git init` |
 | `--version`, `-v` | Print version |
 | `--help` | Show usage |
 
+In an interactive terminal, if `--primary` is not specified, the launcher auto-detects CLIs on PATH and presents an interactive menu to choose your primary agent.
 Named projects are created under the **current working directory** unless `--dir` is set.
 
 ## What it does

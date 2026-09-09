@@ -30,6 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 const STARTER_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -63,16 +64,18 @@ function pathsEqual(a, b) {
   return IS_WINDOWS ? na.toLowerCase() === nb.toLowerCase() : na === nb;
 }
 
-/** Mainstream agents installed by default (no --ai required). */
-const MAINSTREAM_INTEGRATIONS = [
-  "copilot",
-  "claude",
-  "cursor-agent",
-  "gemini",
-  "grok",
-  "codex",
-  "agy",
+const AGENT_INTEGRATIONS = [
+  { key: "agy", name: "Antigravity", bin: "agy", fallback: "antigravity" },
+  { key: "claude", name: "Claude Code", bin: "claude" },
+  { key: "cursor-agent", name: "Cursor", bin: "cursor-agent", fallback: "cursor" },
+  { key: "copilot", name: "GitHub Copilot", bin: "copilot", fallback: "github-copilot-cli" },
+  { key: "gemini", name: "Gemini CLI", bin: "gemini" },
+  { key: "grok", name: "Grok Build", bin: "grok" },
+  { key: "codex", name: "Codex CLI", bin: "codex" },
 ];
+
+/** Mainstream agents installed by default (no --ai required). */
+const MAINSTREAM_INTEGRATIONS = AGENT_INTEGRATIONS.map((a) => a.key);
 
 /**
  * Skill directories created by integrations. After init we keep one canonical
@@ -102,13 +105,15 @@ function defaultScript() {
 
 function usage() {
   console.log(`Usage:
-  node bin/new-project.mjs <name> [--dir <parent>] [--script sh|ps|py] [--only <integration>] [--no-git]
-  node bin/new-project.mjs --here [--dir <path>] [--script sh|ps|py] [--only <integration>] [--no-git]
+  node bin/new-project.mjs <name> [--dir <parent>] [--primary <agent>] [--script sh|ps|py] [--only <agent>] [--no-git] [--non-interactive]
+  node bin/new-project.mjs --here [--dir <path>] [--primary <agent>] [--script sh|ps|py] [--only <agent>] [--no-git] [--non-interactive]
 
 Default: install mainstream integrations (${MAINSTREAM_INTEGRATIONS.join(", ")})
 Default parent for <name>: current working directory
 Default --script: ${defaultScript()} (win32=ps, else sh)
+--primary <integration>: set primary/default AI agent (e.g. agy, claude, cursor-agent)
 --only <integration>: install a single Spec Kit integration instead of all mainstream
+--non-interactive: skip interactive prompts and use auto-detected defaults
 --version, -v: print version
 --help, -h: show usage`);
 }
@@ -124,6 +129,8 @@ function parseArgs(argv) {
     here: false,
     dir: null,
     only: null,
+    primary: null,
+    nonInteractive: false,
     script: null,
     noGit: false,
     help: false,
@@ -136,9 +143,13 @@ function parseArgs(argv) {
     else if (a === "--version" || a === "-v") opts.version = true;
     else if (a === "--here") opts.here = true;
     else if (a === "--no-git") opts.noGit = true;
+    else if (a === "--non-interactive") opts.nonInteractive = true;
     else if (a === "--dir") {
       opts.dir = argv[++i];
       if (!opts.dir) die("--dir requires a path");
+    } else if (a === "--primary" || a === "--default") {
+      opts.primary = argv[++i];
+      if (!opts.primary) die(`${a} requires an integration name (e.g. agy)`);
     } else if (a === "--only") {
       opts.only = argv[++i];
       if (!opts.only) die("--only requires an integration name (e.g. claude)");
@@ -163,6 +174,10 @@ function parseArgs(argv) {
     die(`--only must be a lowercase integration key (got ${opts.only})`);
   }
 
+  if (opts.primary != null && !/^[a-z][a-z0-9-]*$/.test(opts.primary)) {
+    die(`--primary must be a lowercase integration key (got ${opts.primary})`);
+  }
+
   if (opts.script == null) opts.script = defaultScript();
   if (!["sh", "ps", "py"].includes(opts.script)) {
     die(`--script must be sh, ps, or py (got ${opts.script})`);
@@ -180,24 +195,80 @@ function which(cmd) {
   return r.status === 0 && (r.stdout || "").trim().length > 0;
 }
 
-const AGENT_CLI_DETECTION_TARGETS = [
-  { name: "Claude Code", bin: "claude" },
-  { name: "Gemini CLI", bin: "gemini" },
-  { name: "Cursor CLI", bin: "cursor-agent", fallback: "cursor" },
-  { name: "GitHub Copilot CLI", bin: "copilot", fallback: "github-copilot-cli" },
-  { name: "Grok Build", bin: "grok" },
-  { name: "Codex CLI", bin: "codex" },
-  { name: "Antigravity", bin: "agy", fallback: "antigravity" },
-];
-
-function detectAvailableAgentTools() {
-  const found = [];
-  for (const agent of AGENT_CLI_DETECTION_TARGETS) {
+function getDetectedAgentMap() {
+  const map = new Map();
+  for (const agent of AGENT_INTEGRATIONS) {
     if (which(agent.bin) || (agent.fallback && which(agent.fallback))) {
-      found.push(agent.name);
+      map.set(agent.key, agent.name);
     }
   }
-  return found;
+  return map;
+}
+
+function detectAvailableAgentTools() {
+  return Array.from(getDetectedAgentMap().values());
+}
+
+async function selectPrimaryIntegration(projectRoot, opts, detectedMap = getDetectedAgentMap()) {
+  // 1. Explicit CLI flag takes highest priority
+  if (opts.only) return opts.only;
+  if (opts.primary) return opts.primary;
+
+  // 2. Existing project configuration
+  const integrationJsonPath = join(projectRoot, ".specify", "integration.json");
+  const initOptionsJsonPath = join(projectRoot, ".specify", "init-options.json");
+  try {
+    if (existsSync(integrationJsonPath)) {
+      const data = JSON.parse(readText(integrationJsonPath));
+      if (data.default_integration || data.integration) {
+        return data.default_integration || data.integration;
+      }
+    } else if (existsSync(initOptionsJsonPath)) {
+      const data = JSON.parse(readText(initOptionsJsonPath));
+      if (data.integration || data.ai) {
+        return data.integration || data.ai;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 3. Recommended default: first detected agent CLI on PATH, or agy
+  const firstDetected = AGENT_INTEGRATIONS.find((a) => detectedMap.has(a.key))?.key || "agy";
+
+  // 4. Interactive prompt if running in interactive terminal
+  if (process.stdin.isTTY && !opts.nonInteractive) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      console.log("\nSelect your primary AI agent (default integration for Spec Kit):");
+      AGENT_INTEGRATIONS.forEach((agent, idx) => {
+        const isDetected = detectedMap.has(agent.key);
+        const detectedTag = isDetected ? " [Detected on PATH]" : "";
+        const defaultTag = agent.key === firstDetected ? " (Recommended)" : "";
+        console.log(`  [${idx + 1}] ${agent.key.padEnd(14)} - ${agent.name}${detectedTag}${defaultTag}`);
+      });
+      const defaultIdx = AGENT_INTEGRATIONS.findIndex((a) => a.key === firstDetected) + 1;
+      const answer = await rl.question(`\nChoose primary agent [1-${AGENT_INTEGRATIONS.length}] (default: ${defaultIdx} [${firstDetected}]): `);
+      const trimmed = answer.trim().toLowerCase();
+      if (!trimmed) {
+        return firstDetected;
+      }
+      const num = parseInt(trimmed, 10);
+      if (!isNaN(num) && num >= 1 && num <= AGENT_INTEGRATIONS.length) {
+        return AGENT_INTEGRATIONS[num - 1].key;
+      }
+      const matched = AGENT_INTEGRATIONS.find((a) => a.key.toLowerCase() === trimmed);
+      if (matched) {
+        return matched.key;
+      }
+      console.log(`Unknown selection "${answer}". Defaulting to ${firstDetected}`);
+      return firstDetected;
+    } finally {
+      rl.close();
+    }
+  }
+
+  return firstDetected;
 }
 
 
@@ -246,33 +317,23 @@ function listSpeckitSkillDirs(skillsRoot) {
     .map((d) => d.name);
 }
 
-function integrationsToInstall(opts) {
+function integrationsToInstall(opts, primaryIntegration) {
   if (opts.only) return [opts.only];
-  return [...MAINSTREAM_INTEGRATIONS];
+  const list = [...MAINSTREAM_INTEGRATIONS];
+  if (primaryIntegration && list.includes(primaryIntegration)) {
+    return [primaryIntegration, ...list.filter((k) => k !== primaryIntegration)];
+  }
+  return list;
 }
 
-function installIntegrations(projectRoot, keys, script) {
-  const integrationJsonPath = join(projectRoot, ".specify", "integration.json");
-  const initOptionsJsonPath = join(projectRoot, ".specify", "init-options.json");
-  let preferred = null;
-  try {
-    if (existsSync(integrationJsonPath)) {
-      const data = JSON.parse(readText(integrationJsonPath));
-      preferred = data.default_integration || data.integration;
-    } else if (existsSync(initOptionsJsonPath)) {
-      const data = JSON.parse(readText(initOptionsJsonPath));
-      preferred = data.integration || data.ai;
-    }
-  } catch {
-    /* ignore */
-  }
-
+function installIntegrations(projectRoot, keys, script, primaryIntegration) {
   let order = [...keys];
-  if (preferred && order.includes(preferred)) {
-    order = [preferred, ...order.filter((k) => k !== preferred)];
+  const primary = primaryIntegration || order[0];
+  if (order.includes(primary)) {
+    order = [primary, ...order.filter((k) => k !== primary)];
   }
 
-  const [primary, ...rest] = order;
+  const [firstKey, ...rest] = order;
   run(
     "specify",
     [
@@ -280,7 +341,7 @@ function installIntegrations(projectRoot, keys, script) {
       "--here",
       "--force",
       "--integration",
-      primary,
+      firstKey,
       "--script",
       script,
       "--non-interactive",
@@ -308,23 +369,23 @@ function installIntegrations(projectRoot, keys, script) {
     }
   }
 
-  if (preferred) {
-    try {
-      if (existsSync(integrationJsonPath)) {
-        const data = JSON.parse(readText(integrationJsonPath));
-        data.default_integration = preferred;
-        data.integration = preferred;
-        writeText(integrationJsonPath, JSON.stringify(data, null, 2) + "\n");
-      }
-      if (existsSync(initOptionsJsonPath)) {
-        const data = JSON.parse(readText(initOptionsJsonPath));
-        data.integration = preferred;
-        data.ai = preferred;
-        writeText(initOptionsJsonPath, JSON.stringify(data, null, 2) + "\n");
-      }
-    } catch {
-      /* ignore */
+  const integrationJsonPath = join(projectRoot, ".specify", "integration.json");
+  const initOptionsJsonPath = join(projectRoot, ".specify", "init-options.json");
+  try {
+    if (existsSync(integrationJsonPath)) {
+      const data = JSON.parse(readText(integrationJsonPath));
+      data.default_integration = primary;
+      data.integration = primary;
+      writeText(integrationJsonPath, JSON.stringify(data, null, 2) + "\n");
     }
+    if (existsSync(initOptionsJsonPath)) {
+      const data = JSON.parse(readText(initOptionsJsonPath));
+      data.integration = primary;
+      data.ai = primary;
+      writeText(initOptionsJsonPath, JSON.stringify(data, null, 2) + "\n");
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -756,7 +817,7 @@ function resolveProjectDir(opts) {
   return target;
 }
 
-function main() {
+async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.version) {
     const pkg = JSON.parse(readText(join(STARTER_ROOT, "package.json")));
@@ -768,9 +829,13 @@ function main() {
     process.exit(0);
   }
 
-  const keys = integrationsToInstall(opts);
   const projectRoot = resolveProjectDir(opts);
+  const detectedMap = getDetectedAgentMap();
+  const primaryIntegration = await selectPrimaryIntegration(projectRoot, opts, detectedMap);
+  const keys = integrationsToInstall(opts, primaryIntegration);
+
   console.log(`Project root: ${projectRoot}`);
+  console.log(`Primary agent: ${primaryIntegration}`);
   console.log(`Integrations: ${keys.join(", ")}`);
   console.log(`Script: ${opts.script}`);
 
@@ -780,7 +845,7 @@ function main() {
     run("git", ["init"], projectRoot);
   }
 
-  installIntegrations(projectRoot, keys, opts.script);
+  installIntegrations(projectRoot, keys, opts.script, primaryIntegration);
   moveSpeckitSkills(projectRoot);
   applyEnhancedSpeckitSkills(projectRoot, opts.script);
   writeAgentsFiles(projectRoot);
@@ -800,7 +865,8 @@ function main() {
     agentTip = `
 Detected agent CLIs on PATH:
   ${detectedAgents.join(", ")}
-  Tip: Multi-agent environment detected! You can configure per-stage model / agent routing in:
+  Tip: Multi-agent environment detected! Primary agent is '${primaryIntegration}'.
+  You can configure per-stage model / agent routing in:
   - .agents/AGENTS.md (recommended capability tiers for interactive chats)
   - .specify/workflows/overlays/speckit/chained-sdd.yml (per-step CLI dispatch)
 `;
@@ -808,12 +874,12 @@ Detected agent CLIs on PATH:
     agentTip = `
 Detected agent CLI on PATH:
   ${detectedAgents[0]}
-  Tip: Single-agent workflow. All stages default cleanly to your active agent.
+  Tip: Primary agent set to '${primaryIntegration}'. All stages default cleanly to your active agent.
 `;
   } else {
     agentTip = `
 Detected agent CLIs on PATH:
-  None found on PATH (IDE-based agents like Cursor or VS Code Copilot can be used directly).
+  None found on PATH (Primary set to '${primaryIntegration}'). IDE-based agents can be used directly.
 `;
   }
 
@@ -821,6 +887,8 @@ Detected agent CLIs on PATH:
 Done. Spec Kit project ready at:
   ${projectRoot}
 
+Primary agent:
+  ${primaryIntegration}
 Installed integrations:
   ${keys.join(", ")}
 ${agentTip.trimEnd()}
@@ -829,7 +897,7 @@ Chained Spec Kit run (pause after clarify/analyze only when issues remain):
   specify → clarify → plan → tasks → analyze → implement → converge
 
 Next steps:
-  1. Open the project in any of the installed coding agents
+  1. Open the project in your primary agent (${primaryIntegration})
   2. Run /speckit-constitution  (set THIS project's principles; keep the pipeline principle)
   3. Run /speckit-specify       (starts the chained run above)
 
@@ -847,6 +915,9 @@ export {
   adaptSkillScript,
   defaultScript,
   usage,
+  selectPrimaryIntegration,
+  integrationsToInstall,
+  AGENT_INTEGRATIONS,
 };
 
 const isDirectRun = Boolean(
@@ -855,5 +926,7 @@ const isDirectRun = Boolean(
 );
 
 if (isDirectRun) {
-  main();
+  main().catch((err) => {
+    die(err?.message || String(err));
+  });
 }

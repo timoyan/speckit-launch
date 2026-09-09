@@ -10,6 +10,8 @@ import {
   parseArgs,
   getPipelineRules,
   adaptSkillScript,
+  selectPrimaryIntegration,
+  integrationsToInstall,
 } from "../bin/new-project.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,12 +38,27 @@ test("getPipelineRules returns canonical pipeline rules", () => {
 });
 
 test("parseArgs parses valid flags correctly", () => {
-  const opts = parseArgs(["my-proj", "--script", "sh", "--only", "claude", "--no-git"]);
+  const opts = parseArgs(["my-proj", "--script", "sh", "--only", "claude", "--no-git", "--primary", "agy", "--non-interactive"]);
   assert.equal(opts.name, "my-proj");
   assert.equal(opts.script, "sh");
   assert.equal(opts.only, "claude");
+  assert.equal(opts.primary, "agy");
+  assert.equal(opts.nonInteractive, true);
   assert.equal(opts.noGit, true);
   assert.equal(opts.here, false);
+});
+
+test("selectPrimaryIntegration prioritizes explicit flag over detection", async () => {
+  const dummyDetected = new Map([["claude", "Claude Code"]]);
+  const primary = await selectPrimaryIntegration(ROOT, { primary: "agy", nonInteractive: true }, dummyDetected);
+  assert.equal(primary, "agy");
+});
+
+test("integrationsToInstall positions primary integration first", () => {
+  const keys = integrationsToInstall({}, "agy");
+  assert.equal(keys[0], "agy");
+  assert.ok(keys.includes("copilot"));
+  assert.ok(keys.includes("claude"));
 });
 
 test("parseArgs handles --here flag", () => {

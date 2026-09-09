@@ -84,12 +84,15 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 |------|------|
 | `--here` | 在目前目錄初始化（若有設 `--dir` 則用那個路徑） |
 | `--dir <path>` | `<name>` 的上層目錄；搭配 `--here` 時則是目標路徑 |
-| `--only <integration>` | 只裝這一個 Spec Kit 整合（略過主流組合） |
+| `--primary <agent>` | 指定主要 / 預設 AI Agent（如 `agy`、`claude`、`cursor-agent`），保留所有主流整合 |
+| `--only <agent>` | 只裝這一個 Spec Kit 整合（略過主流組合） |
+| `--non-interactive` | 跳過終端互動選單，使用自動探測之預設 Agent |
 | `--script sh\|ps\|py` | helper script 類型（預設：Windows 為 `ps`，其他為 `sh`） |
 | `--no-git` | 略過 `git init` |
 | `--version`, `-v` | 顯示版本號 |
 | `--help` | 顯示用法 |
 
+互動式終端下若未指定 `--primary`，啟動器會自動探測 PATH 並跳出數字選單供單選主要 Agent。
 具名專案建在 **目前工作目錄** 底下，除非有設 `--dir`。
 
 ## 它做了什麼
