@@ -347,7 +347,7 @@ function moveSpeckitSkills(projectRoot) {
 
 function applyEnhancedSpeckitSkills(projectRoot) {
   const canonical = join(projectRoot, ".agents", "skills");
-  const skillsTemplateDir = join(TEMPLATES, "skills");
+  const skillsTemplateDir = join(STARTER_ROOT, "presets", "chained-sdd", "skills");
   if (!existsSync(skillsTemplateDir)) return;
 
   const skillDirs = readdirSync(skillsTemplateDir, { withFileTypes: true })
