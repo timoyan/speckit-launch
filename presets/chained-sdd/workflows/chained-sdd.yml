@@ -95,7 +95,7 @@ edits:
       id: analyze
       command: speckit.analyze
       integration: "{{ inputs.integration }}"
-      # model: "gemini-2.5-pro" # 建議：大 Context 視窗模型（未指定時由 Agent 動態決定）
+      # model: "gemini-3.1-pro" # 建議：大 Context 視窗 / 深度稽核模型（未指定時由 Agent 動態決定）
       input:
         args: "{{ inputs.spec }}"
 

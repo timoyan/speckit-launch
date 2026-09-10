@@ -159,6 +159,20 @@ function installPreset(targetDir) {
     console.log("✓ Wrote .cursor/rules/speckit-pipeline.mdc");
   }
 
+  // 4b. Multi-agent docs pointer (.cursorrules, CLAUDE.md, .github/copilot-instructions.md)
+  const agentDocCandidates = [".cursorrules", "CLAUDE.md", ".github/copilot-instructions.md"];
+  const pointerBlock = `\n\n## Spec Kit chained pipeline\n\nCanonical rules: \`.agents/AGENTS.md\`.\n\n\`\`\`\nspecify → clarify → plan → tasks → analyze → implement → converge\n\`\`\`\n\nPause after clarify/analyze only when issues remain.\n`;
+  for (const doc of agentDocCandidates) {
+    const docPath = join(projectRoot, ...doc.split("/"));
+    if (existsSync(docPath)) {
+      const content = readText(docPath);
+      if (!content.includes(".agents/AGENTS.md") && !content.includes("Spec Kit chained pipeline")) {
+        writeText(docPath, content.trimEnd() + pointerBlock);
+        console.log(`✓ Merged Spec Kit pipeline pointer into ${doc}`);
+      }
+    }
+  }
+
   // 5. Specify preset registration
   const r = runCmd("specify", ["preset", "add", "--dev", PRESET_ROOT], projectRoot);
   if (r.status === 0) {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,7 @@ import {
   adaptSkillScript,
   selectPrimaryIntegration,
   integrationsToInstall,
+  ensureAgentBridgeFiles,
 } from "../bin/new-project.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,6 +36,14 @@ test("getPipelineRules returns canonical pipeline rules", () => {
   assert.ok(
     rules.includes("Model & capability tier routing"),
     "rules must include model capability routing",
+  );
+  assert.ok(
+    rules.includes("Architect Role"),
+    "rules must include Architect Role definition",
+  );
+  assert.ok(
+    rules.includes("Single-Agent / Interactive Chat Environments"),
+    "rules must include single-agent environment guidance",
   );
 });
 
@@ -195,5 +205,29 @@ test("scripts/new-worktree.mjs integrity and help output", () => {
     encoding: "utf8",
   });
   assert.notEqual(rNoArgs.status, 0);
+});
+
+test("ensureAgentBridgeFiles creates bridge files pointing to .agents/AGENTS.md", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-bridge-test-"));
+  try {
+    ensureAgentBridgeFiles(tmp, ["claude", "cursor-agent", "copilot"]);
+
+    const claudePath = join(tmp, "CLAUDE.md");
+    assert.ok(existsSync(claudePath), "CLAUDE.md must be created");
+    const claudeContent = readFileSync(claudePath, "utf8");
+    assert.ok(claudeContent.includes(".agents/AGENTS.md"));
+
+    const cursorRulesPath = join(tmp, ".cursorrules");
+    assert.ok(existsSync(cursorRulesPath), ".cursorrules must be created");
+    const cursorRulesContent = readFileSync(cursorRulesPath, "utf8");
+    assert.ok(cursorRulesContent.includes(".agents/AGENTS.md"));
+
+    const copilotPath = join(tmp, ".github", "copilot-instructions.md");
+    assert.ok(existsSync(copilotPath), ".github/copilot-instructions.md must be created");
+    const copilotContent = readFileSync(copilotPath, "utf8");
+    assert.ok(copilotContent.includes(".agents/AGENTS.md"));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
 

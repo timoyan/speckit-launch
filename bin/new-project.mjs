@@ -552,6 +552,7 @@ const AGENT_DOC_CANDIDATES = [
   "AGENTS.md",
   "CLAUDE.md",
   "GEMINI.md",
+  ".cursorrules",
   ".github/copilot-instructions.md",
 ];
 
@@ -765,12 +766,75 @@ function seedConstitutionPipeline(projectRoot, { presetInstalled } = {}) {
   }
 }
 
+function ensureAgentBridgeFiles(projectRoot, keys = []) {
+  if (keys.includes("claude")) {
+    const claudeMd = join(projectRoot, "CLAUDE.md");
+    if (!existsSync(claudeMd)) {
+      const content = `# Project Instructions (Claude Code)
+
+This repository follows [Spec-Driven Development (SDD)](https://github.com/github/spec-kit).
+All workflow policies, role definitions, and capability tier routing are defined in:
+👉 **[.agents/AGENTS.md](.agents/AGENTS.md)**
+
+## Quick Reference
+- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement → converge\`.
+- **Principles**: Spec-first. Always specify requirements in \`specs/*/spec.md\` before coding.
+- **Autonomy**: Day-to-day implementation is autonomous; pause after clarify/analyze only when issues remain.
+`;
+      writeText(claudeMd, content);
+      console.log("wrote CLAUDE.md (bridge to .agents/AGENTS.md)");
+    }
+  }
+
+  if (keys.includes("cursor-agent")) {
+    const cursorRules = join(projectRoot, ".cursorrules");
+    if (!existsSync(cursorRules)) {
+      const content = `# Cursor Rules
+
+This project follows GitHub Spec Kit for Spec-Driven Development.
+Primary rules, role definitions, and workflow pipeline are documented in:
+👉 **.agents/AGENTS.md**
+
+## Quick Reference
+- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement → converge\`
+- **Detailed Rules**: See \`.cursor/rules/speckit-pipeline.mdc\` and \`.agents/AGENTS.md\`.
+- **Principles**: Spec-first. Keep transient execution artifacts in \`specs/<feature>/\` until converged.
+`;
+      writeText(cursorRules, content);
+      console.log("wrote .cursorrules (bridge to .agents/AGENTS.md)");
+    }
+  }
+
+  if (keys.includes("copilot")) {
+    const copilotDir = join(projectRoot, ".github");
+    mkdirSync(copilotDir, { recursive: true });
+    const copilotMd = join(copilotDir, "copilot-instructions.md");
+    if (!existsSync(copilotMd)) {
+      const content = `# GitHub Copilot Instructions
+
+See [.agents/AGENTS.md](../.agents/AGENTS.md) for full architecture guidelines and Spec-Driven Development pipelines.
+
+## Spec Kit Chained Pipeline
+\`specify → clarify → plan → tasks → analyze → implement → converge\`
+
+Follow spec-first principles and pause after clarify/analyze only when issues remain.
+`;
+      writeText(copilotMd, content);
+      console.log("wrote .github/copilot-instructions.md (bridge to .agents/AGENTS.md)");
+    }
+  }
+}
+
 function mergePipelinePointerIntoAgentDocs(projectRoot) {
   for (const rel of AGENT_DOC_CANDIDATES) {
     const dest = join(projectRoot, ...rel.split("/"));
     if (!existsSync(dest)) continue;
     const existing = readText(dest);
-    if (existing.includes(PIPELINE_NEEDLE) || existing.includes("Spec Kit chained pipeline")) {
+    if (
+      existing.includes(PIPELINE_NEEDLE) ||
+      existing.includes("Spec Kit chained pipeline") ||
+      existing.includes(".agents/AGENTS.md")
+    ) {
       continue;
     }
     const sep = existing.endsWith("\n") ? "\n" : "\n\n";
@@ -882,6 +946,7 @@ async function main() {
   overlaySpeckitWorkflow(projectRoot);
   const presetInstalled = installChainedSddPreset(projectRoot);
   seedConstitutionPipeline(projectRoot, { presetInstalled });
+  ensureAgentBridgeFiles(projectRoot, keys);
   mergePipelinePointerIntoAgentDocs(projectRoot);
   copyHelperScripts(projectRoot);
   runLinkScript(projectRoot);
@@ -950,6 +1015,7 @@ export {
   usage,
   selectPrimaryIntegration,
   integrationsToInstall,
+  ensureAgentBridgeFiles,
   AGENT_INTEGRATIONS,
 };
 

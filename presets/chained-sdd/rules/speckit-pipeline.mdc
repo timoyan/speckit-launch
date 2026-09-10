@@ -52,17 +52,28 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
 
 ## Model & capability tier routing
 
-Match the model tier to each stage for optimal cost, speed, and accuracy:
+Match the model tier to each stage for optimal cost, speed, and accuracy across any AI tool (AGY, Claude Code, Cursor, Copilot, Aider, Herdr):
 
-| Stage | Capability Tier | Recommended Examples | Primary Purpose |
-|-------|-----------------|----------------------|-----------------|
-| `specify` / `clarify` | High reasoning / Thinking (CoT) | Claude 3.7 Sonnet (Thinking), o3-mini, Gemini 2.5 Pro | Uncovers hidden constraints, edge cases, and ambiguities early |
-| `plan` | Architectural reasoning | Claude 3.7 Sonnet, GPT-4o | Solid system boundaries and dependency planning |
-| `tasks` | Structured decomposition | Flagship model | Generates clean, actionable task graphs |
-| `analyze` | Large context / Deep verification | Gemini 1.5/2.0 Pro, Claude 3.7 Sonnet | Whole-repo consistency and spec vs code audit without context loss |
-| `implement` / `converge` | Fast, high-throughput coding | Claude 3.5/3.7 Sonnet, GPT-4o, DeepSeek-V3 | Rapid code writing, test loops, and convergence passes |
+| Stage | Capability Tier | Recommended Model Classes | Primary Purpose |
+|-------|-----------------|---------------------------|-----------------|
+| `specify` / `clarify` | High reasoning / Thinking (CoT) | `gemini-3.1-pro` / `claude-3-7-sonnet` (thinking) / `o3-mini` / `r1` | Uncovers hidden constraints, edge cases, and ambiguities early |
+| `plan` | Architectural reasoning | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | Solid system boundaries, data contracts, and dependency planning |
+| `tasks` | Structured decomposition | `gemini-3.8-flash` / `claude-3-5-haiku` / `gpt-4o-mini` | Generates clean, dependency-ordered, actionable task graphs |
+| `analyze` | Large context / Deep verification | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | Whole-repo consistency and spec vs code audit without context loss |
+| `implement` / `converge` | Fast, high-throughput coding | `gemini-3.8-flash` / `claude-3-5-sonnet` / `gpt-4o` | Rapid code writing, test-driven loops, and convergence passes |
 
-- **Interactive chat vs CLI automation**: In an interactive chat session (e.g. Cursor, Claude Code, Copilot), the active model cannot swap its own underlying LLM mid-session; the table above serves as guidance for the user (or subagent orchestrators) to select appropriate models at each stage.
-- **Automated CLI workflow**: To automate cross-model switching across stages, run `specify workflow run speckit` with explicit `model:` and `integration:` pins in `.specify/workflows/overlays/speckit/chained-sdd.yml`.
-- **User override priority**: If the user manually edits `.specify/workflows/overlays/speckit/chained-sdd.yml` to specify `model: "..."` or `integration: "..."`, that configuration takes strict precedence.
-- **Single-agent environments**: If only using one model or tool, run all stages with your primary/flagship model.
+- **Multi-Agent / Subagent-Capable Environments** (AGY, Claude Code Task, Herdr multi-pane):
+  - `specify` / `clarify` / `plan` are assigned to the **Architect Role** (`pro` / high-reasoning tier) for deep reasoning and system modeling.
+  - `tasks` decomposition is handled by the primary coordinator.
+  - `analyze` consistency and quality audit is assigned to the **Reviewer Role** (`pro` / high-reasoning tier, read-only) for comprehensive cross-artifact verification.
+  - `implement` / `converge` are executed by the **Coder Role** (`flash` / fast coding tier) for rapid TDD loops.
+- **Single-Agent / Interactive Chat Environments** (Cursor Composer, Windsurf, Claude Desktop, Aider):
+  - When subagent spawning is unavailable, the primary agent adopts each persona sequentially:
+    - Act as **Architect** during `specify` and `plan` (focus on constraints and contracts).
+    - Act as **Coordinator** during `tasks` (focus on clear atomicity).
+    - Act as **Reviewer** during `analyze` (audit specs vs code before coding).
+    - Act as **Coder** during `implement` and `converge` (focus on minimal diffs and running tests).
+- **Automated CLI / Workflow Orchestration**:
+  - In Spec Kit CLI: configured via `.specify/workflows/overlays/speckit/chained-sdd.yml`.
+  - In Herdr / Terminal Multiplexers: scripts can split panes and assign roles sequentially or in parallel.
+  - User override priority: explicit `model:` or `integration:` settings in workflow files take strict precedence.
