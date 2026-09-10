@@ -108,7 +108,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 5. 寫入 `.agents/skills.json` 與 `.agents/AGENTS.md`（串接流程、自動修復與模型分工）
 6. 寫入 `.cursor/rules/speckit-pipeline.mdc`，並安裝 `.specify/workflows/overlays/speckit/chained-sdd.yml`（具備 `review-clarify` 與 `review-analyze` 閘門，設定 `on_reject: retry` 避免致命中斷，且**不**覆蓋官方 bundled `workflow.yml`）
 7. 安裝本地 `chained-sdd` preset（`specify preset add --dev`），讓 `/speckit-constitution` 把流程原則 append 進憲章 scaffold。尚未填寫的 `constitution.md` 也會種入同一段。不複製別的專案已填好的 constitution。 **尚未** 發佈到 Spec Kit catalog。
-8. 若已存在 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.github/copilot-instructions.md`），補一段流程 pointer
+8. 自動建立多 AI 工具橋接檔案（`CLAUDE.md`、`.cursorrules`、`.github/copilot-instructions.md`）指向主控 `.agents/AGENTS.md`，並對現存的 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.cursorrules`、`.github/copilot-instructions.md`）補上流程 pointer，實現零設定多 IDE 自動識別
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
 10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`），讓新專案在 Windows／macOS／Linux 都維持 LF
@@ -144,26 +144,33 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：插入 clarify／analyze／converge，並設置非破壞性重試閘門。官方 `workflow.yml` 仍可單獨升級
 - `chained-sdd` preset — 把 **Autonomy & Spec Kit pipeline** 原則 append 到 `constitution-template`（本地 `--dev` 安裝；不是 catalog 發行）。尚未填寫的 `constitution.md` 同樣種入
 
-### 各階段模型與 Agent 分工 (Model & Agent Routing)
+### 各階段模型與能力階層分工 (Model & Capability Tier Routing)
 
-Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解耦，完全支援依任務屬性分工：
+Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解耦，支援在任何 AI 工具（AGY、Claude Code、Cursor、Copilot、Aider、Herdr）中按能力階層進行最佳化分工：
 
-| 階段 | 建議能力等級 | 推薦模型範例 | 主要目標 |
+| 階段 | 建議能力等級 | 推薦模型類別 | 主要目標 |
 |------|-------------|--------------|----------|
-| `specify` / `clarify` | 深度推理 / Thinking (CoT) | Claude 3.7 Sonnet (Thinking)、o3-mini、Gemini 2.5 Pro | 提早釐清隱性限制、邊界條件與歧義 |
-| `plan` | 系統架構推理 | Claude 3.7 Sonnet、GPT-4o | 建立清晰系統邊界與相依性規劃 |
-| `tasks` | 結構化任務拆解 | 主力旗艦模型 | 產出結構清晰、可逐條驗收的任務圖 |
-| `analyze` | 大 Context / 全域稽核 | Gemini 1.5/2.0 Pro、Claude 3.7 Sonnet | 比對全專案 codebase 與規格，無 Context 截斷 |
-| `implement` / `converge` | 敏捷、高產出編碼 | Claude 3.5/3.7 Sonnet、GPT-4o、DeepSeek-V3 | 高速撰寫程式碼、快速跑測試與迭代收斂 |
+| `specify` / `clarify` | 深度推理 / Thinking (CoT) | `gemini-3.1-pro` / `claude-3-7-sonnet` (thinking) / `o3-mini` / `r1` | 提早釐清隱性限制、邊界條件與歧義 |
+| `plan` | 系統架構推理 | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | 建立清晰系統邊界、資料契約與相依性規劃 |
+| `tasks` | 結構化任務拆解 | `gemini-3.8-flash` / `claude-3-5-haiku` / `gpt-4o-mini` | 產出結構清晰、具相依順序、可逐條驗收的任務圖 |
+| `analyze` | 大 Context / 全域稽核 | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | 比對全專案 codebase 與規格，無 Context 截斷 |
+| `implement` / `converge` | 敏捷、高產出編碼 | `gemini-3.8-flash` / `claude-3-5-sonnet` / `gpt-4o` | 高速撰寫程式碼、測試驅動開發 (TDD) 與快速收斂 |
 
-- **執行時動態決定**：預設不硬編碼模型，由當下執行的 Agent / CLI 依據上方能力等級動態輸入或選用最適模型。
-- **用戶手動覆寫**：若用戶希望固定特定步驟的模型，可隨時在專案的 `.specify/workflows/overlays/speckit/chained-sdd.yml`（涵蓋全部 7 個步驟）解除註解並指定 `model:` 或 `integration:`，手動配置具最高優先級。
-- **單 Agent vs 多 Agent**：啟動器初始化時會自動探測 PATH 上的 Agent CLIs。單 Agent 環境自動平滑回退，多 Agent 環境提示進階分工路徑。
-
-> [!IMPORTANT]
-> **關鍵結論：Agent 在執行過程中不會「自動」跨模型切換**
-> - **在 IDE / 聊天視窗中（如 Cursor、Claude Code、Copilot）**：對話模型是由你在介面下拉選單決定的，當前運行的模型無法自我抽換或在背後切換底層 Model；`AGENTS.md` 的表格是**給開發者的切換指引**（提示你在不同階段手動切換最適模型）。
-> - **唯一能自動切換模型的方式：使用 CLI 工作流**：只有當你透過終端機執行 `specify workflow run speckit` 時，Spec Kit 的排程引擎才會在背景依照 `.specify/workflows/overlays/speckit/chained-sdd.yml` 裡**明確寫出的 `model:` 與 `integration:`** 自動依步驟調用不同 CLI 與模型。若 YAML 裡未指定，則一律使用該 CLI 的預設模型。
+- **多 Agent / Subagent 支援環境**（AGY、Claude Code Task、Herdr 多窗格）：
+  - `specify` / `clarify` / `plan` 指派給 **Architect 架構師角色**（`pro` 等級）負責深度推理與架構塑模。
+  - `tasks` 拆解由主協調 Agent（`flash` 等級）負責。
+  - `analyze` 全域稽核指派給 **Reviewer 審查者角色**（`pro` 等級、唯讀）負責 cross-artifact 比對。
+  - `implement` / `converge` 由 **Coder 編碼者角色**（`flash` 等級）執行高速循環實作與測試。
+- **單 Agent / 互動式對話環境**（Cursor Composer、Windsurf、Claude Desktop、Aider）：
+  - 當無子 Agent 自動派發機制時，主 Agent 於各階段循序切換心理 Persona：
+    - 在 `specify` 與 `plan` 扮演 **Architect**（專注限制與契約）。
+    - 在 `tasks` 扮演 **Coordinator**（專注原子性與順序）。
+    - 在 `analyze` 扮演 **Reviewer**（撰寫程式碼前先全面稽核）。
+    - 在 `implement` 與 `converge` 扮演 **Coder**（專注最小 diff 與測試驗證）。
+- **自動化 CLI / 腳本編排**：
+  - 在 Spec Kit CLI：透過 `.specify/workflows/overlays/speckit/chained-sdd.yml` 設定。
+  - 在 Herdr / 終端機多工器：透過腳本自動切割窗格並依序派工。
+  - 用戶覆寫優先：工作流設定檔中若顯式指定 `model:` 或 `integration:`，以用戶設定為最高優先。
 
 
 

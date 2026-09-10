@@ -108,7 +108,7 @@ Named projects are created under the **current working directory** unless `--dir
 5. Writes `.agents/skills.json` and `.agents/AGENTS.md` (chained pipeline rules, remediation workflow, and model routing)
 6. Writes `.cursor/rules/speckit-pipeline.mdc` and installs `.specify/workflows/overlays/speckit/chained-sdd.yml` with interactive gates (`review-clarify` and `review-analyze`) configured with `on_reject: retry` to prevent fatal aborts
 7. Installs the local `chained-sdd` preset (`specify preset add --dev`) so `/speckit-constitution` appends the pipeline principle. Also seeds an unfilled `constitution.md`. Does not copy another project's filled constitution. **Not** published to a Spec Kit catalog.
-8. Merges a short pipeline pointer into existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) if those files already exist
+8. Creates multi-agent bridge pointer files (`CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`) pointing to `.agents/AGENTS.md` and merges pipeline pointers into any existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`) for zero-config multi-IDE discovery
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
 10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`) so generated projects keep LF on Windows / macOS / Linux
@@ -144,26 +144,33 @@ Overlays written into the new project:
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: inserts clarify / analyze / converge, with non-destructive retry gates. Official `workflow.yml` stays upgradable.
 - `chained-sdd` preset — appends the **Autonomy & Spec Kit pipeline** principle onto `constitution-template` (local `--dev` install; not a catalog release). Unfilled `constitution.md` is seeded the same way.
 
-### Model & Agent Routing per Stage
+### Model & capability tier routing
 
-Because Spec Kit decouples stages via disk artifacts in `specs/<feature>/`, you can route stages across models and agents based on strengths:
+Because Spec Kit decouples stages via disk artifacts in `specs/<feature>/`, you can route stages across models and agents based on strengths across any AI tool (AGY, Claude Code, Cursor, Copilot, Aider, Herdr):
 
-| Stage | Capability Tier | Recommended Examples | Primary Purpose |
-|-------|-----------------|----------------------|-----------------|
-| `specify` / `clarify` | High reasoning / Thinking (CoT) | Claude 3.7 Sonnet (Thinking), o3-mini, Gemini 2.5 Pro | Uncovers hidden constraints, edge cases, and ambiguities early |
-| `plan` | Architectural reasoning | Claude 3.7 Sonnet, GPT-4o | Solid system boundaries and dependency planning |
-| `tasks` | Structured decomposition | Flagship model | Generates clean, actionable task graphs |
-| `analyze` | Large context / Deep verification | Gemini 1.5/2.0 Pro, Claude 3.7 Sonnet | Whole-repo consistency and spec vs code audit without context truncation |
-| `implement` / `converge` | Fast, high-throughput coding | Claude 3.5/3.7 Sonnet, GPT-4o, DeepSeek-V3 | Rapid code writing, test loops, and convergence passes |
+| Stage | Capability Tier | Recommended Model Classes | Primary Purpose |
+|-------|-----------------|---------------------------|-----------------|
+| `specify` / `clarify` | High reasoning / Thinking (CoT) | `gemini-3.1-pro` / `claude-3-7-sonnet` (thinking) / `o3-mini` / `r1` | Uncovers hidden constraints, edge cases, and ambiguities early |
+| `plan` | Architectural reasoning | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | Solid system boundaries, data contracts, and dependency planning |
+| `tasks` | Structured decomposition | `gemini-3.8-flash` / `claude-3-5-haiku` / `gpt-4o-mini` | Generates clean, dependency-ordered, actionable task graphs |
+| `analyze` | Large context / Deep verification | `gemini-3.1-pro` / `claude-3-7-sonnet` / `o3-mini` | Whole-repo consistency and spec vs code audit without context loss |
+| `implement` / `converge` | Fast, high-throughput coding | `gemini-3.8-flash` / `claude-3-5-sonnet` / `gpt-4o` | Rapid code writing, test-driven loops, and convergence passes |
 
-- **Dynamic Agent Model Selection**: Models are not hardcoded by default; the executing agent or CLI dynamically inputs/selects the best model according to the capability tier table above.
-- **User Manual Override**: If you want to pin specific models, uncomment the respective steps in `.specify/workflows/overlays/speckit/chained-sdd.yml` (covers all 7 steps) and specify `model:` or `integration:`. User edits take strict precedence.
-- **Single vs Multi-agent**: Bootstrap automatically detects agent CLIs on PATH, offering zero-config fallback for single-agent setups and routing tips for multi-agent environments.
-
-> [!IMPORTANT]
-> **Key Conclusion: Agents do NOT automatically switch models mid-flow**
-> - **In IDE / chat sessions (e.g. Cursor, Claude Code, Copilot)**: The active model is chosen by you in the UI or CLI launch parameters. An active LLM cannot swap its own underlying engine mid-session. The capability table in `AGENTS.md` serves as **human guidance** (reminding you when to switch models manually in the UI).
-> - **The ONLY way to automate cross-model switching: Spec Kit CLI Workflows**: Running `specify workflow run speckit` lets the Spec Kit orchestrator dispatch background steps according to the `model:` and `integration:` explicitly defined in `.specify/workflows/overlays/speckit/chained-sdd.yml`. If unspecified in the YAML, steps use the respective integration's default model.
+- **Multi-Agent / Subagent-Capable Environments** (AGY, Claude Code Task, Herdr multi-pane):
+  - `specify` / `clarify` / `plan` are assigned to the **Architect Role** (`pro` / high-reasoning tier) for deep reasoning and system modeling.
+  - `tasks` decomposition is handled by the primary coordinator.
+  - `analyze` consistency and quality audit is assigned to the **Reviewer Role** (`pro` / high-reasoning tier, read-only) for comprehensive cross-artifact verification.
+  - `implement` / `converge` are executed by the **Coder Role** (`flash` / fast coding tier) for rapid TDD loops.
+- **Single-Agent / Interactive Chat Environments** (Cursor Composer, Windsurf, Claude Desktop, Aider):
+  - When subagent spawning is unavailable, the primary agent adopts each persona sequentially:
+    - Act as **Architect** during `specify` and `plan` (focus on constraints and contracts).
+    - Act as **Coordinator** during `tasks` (focus on clear atomicity).
+    - Act as **Reviewer** during `analyze` (audit specs vs code before coding).
+    - Act as **Coder** during `implement` and `converge` (focus on minimal diffs and running tests).
+- **Automated CLI / Workflow Orchestration**:
+  - In Spec Kit CLI: configured via `.specify/workflows/overlays/speckit/chained-sdd.yml`.
+  - In Herdr / Terminal Multiplexers: scripts can split panes and assign roles sequentially or in parallel.
+  - User override priority: explicit `model:` or `integration:` settings in workflow files take strict precedence.
 
 
 
