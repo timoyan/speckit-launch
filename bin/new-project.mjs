@@ -670,27 +670,6 @@ function adaptSkillScript(content, scriptType = "ps") {
   return content;
 }
 
-function applyEnhancedSpeckitSkills(projectRoot, scriptType = "ps") {
-  const canonical = join(projectRoot, ".agents", "skills");
-  const skillsTemplateDir = join(STARTER_ROOT, "presets", "chained-sdd", "skills");
-  if (!existsSync(skillsTemplateDir)) return;
-
-  const skillDirs = readdirSync(skillsTemplateDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
-
-  for (const name of skillDirs) {
-    const srcSkill = join(skillsTemplateDir, name, "SKILL.md");
-    if (!existsSync(srcSkill)) continue;
-    const destDir = join(canonical, name);
-    mkdirSync(destDir, { recursive: true });
-    const destSkill = join(destDir, "SKILL.md");
-    const content = readText(srcSkill);
-    writeText(destSkill, adaptSkillScript(content, scriptType));
-    console.log(`applied enhanced skill template -> .agents/skills/${name}/SKILL.md (${scriptType})`);
-  }
-}
-
 function mergeGitignore(projectRoot) {
   const fragmentPath = join(TEMPLATES, "gitignore.fragment");
   const fragment = readText(fragmentPath).trimEnd() + "\n";
@@ -1181,29 +1160,6 @@ function writeAgentsFiles(projectRoot) {
   console.log("merged Spec Kit pipeline into .agents/AGENTS.md");
 }
 
-function writeCursorPipelineRule(projectRoot) {
-  const destDir = join(projectRoot, ".cursor", "rules");
-  mkdirSync(destDir, { recursive: true });
-  const dest = join(destDir, "speckit-pipeline.mdc");
-  const src = join(STARTER_ROOT, "presets", "chained-sdd", "rules", "speckit-pipeline.mdc");
-  if (existsSync(src)) {
-    copyTextFile(src, dest);
-  } else {
-    const rules = getPipelineRules();
-    const content = `---
-description: Spec Kit chained pipeline — pause after clarify/analyze only when issues remain
-alwaysApply: true
----
-
-# Spec Kit automation pipeline
-
-${rules}
-`;
-    writeText(dest, content);
-  }
-  console.log("wrote .cursor/rules/speckit-pipeline.mdc");
-}
-
 function specifyCli(args, cwd) {
   let r = spawnSync("specify", args, {
     cwd,
@@ -1383,19 +1339,6 @@ function mergePipelinePointerIntoAgentDocs(projectRoot) {
     const sep = existing.endsWith("\n") ? "\n" : "\n\n";
     writeText(dest, existing.trimEnd() + sep + AGENT_PIPELINE_POINTER);
     console.log(`merged Spec Kit pipeline pointer into ${rel}`);
-  }
-}
-
-function copyHelperScripts(projectRoot) {
-  const scriptsDir = join(projectRoot, "scripts");
-  mkdirSync(scriptsDir, { recursive: true });
-  for (const scriptName of ["link-agent-skills.mjs", "new-worktree.mjs"]) {
-    const src = join(STARTER_ROOT, "scripts", scriptName);
-    const dest = join(scriptsDir, scriptName);
-    if (existsSync(src)) {
-      copyTextFile(src, dest);
-      console.log(`copied scripts/${scriptName}`);
-    }
   }
 }
 
