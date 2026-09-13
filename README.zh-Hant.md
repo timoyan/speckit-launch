@@ -30,8 +30,12 @@ specify init <name> --integration copilot --script sh --non-interactive
 
 | | 版本 |
 |--|------|
-| **最低需求** | Spec Kit **1.0+**（`specify workflow overlay`、overlay 路徑 `.specify/workflows/overlays/`） |
+| **支援範圍** | Spec Kit **>=1.0.0 <2.0.0**（`specify workflow overlay`、overlay 路徑 `.specify/workflows/overlays/`） |
 | **最近實測** | **1.0.4**（2026-09-08） |
+| **較新的 1.x** | 警告後繼續 |
+| **<1.0.0 或 >=2.0.0** | init 與 upgrade 拒絕 |
+
+init 讀 `specify --version`。upgrade 同時讀它和 `.specify/init-options.json` 的 `speckit_version`（寫出這個專案的版本）。PATH 上沒有 `specify` 不會擋住 upgrade——這個指令不會呼叫它——但專案版本太舊或是未實測的大版本會失敗。dev 後綴依數字三段比較（`1.0.6.dev0` 視為 1.0.6）。
 
 串接 SDD overlay 對準官方 bundled `speckit` workflow 的 step id（`specify`、`review-spec`、`plan`、`review-plan`、`tasks`、`implement`）。新版 CLI 若改名這些 id，要改 overlay——見 [升級 `specify` CLI 之後](#升級-specify-cli-之後)。
 
@@ -142,7 +146,7 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 
 - `.agents/AGENTS.md` — 流程與自主推進的 canonical 規則，以及修復與 ADR 萃取流程
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` 的暫停規則
-- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：插入 clarify／analyze／converge，並設置非破壞性重試閘門。官方 `workflow.yml` 仍可單獨升級
+- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay：插入 clarify／analyze／converge，並設置非破壞性重試閘門。尚未註冊時先 `specify workflow overlay add --priority 10`（失敗才複製檔案）。官方 `workflow.yml` 仍可單獨升級
 - `chained-sdd` preset — 把 **Autonomy & Spec Kit pipeline** 原則 append 到 `constitution-template`（本地 `--dev` 安裝；不是 catalog 發行）。尚未填寫的 `constitution.md` 同樣種入
 
 ### 各階段模型與能力階層分工 (Model & Capability Tier Routing)
@@ -183,14 +187,36 @@ Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解�
 
 之後新建的專案，下次跑 `node bin/new-project.mjs` 就會用到新的 CLI。要讓啟動器本身保持相容：
 
-1. 確認 CLI：`specify version`（最近實測：**1.0.4**；最低需求：**1.0+**）
+1. 確認 CLI：`specify --version`（支援 **>=1.0.0 <2.0.0**；最近實測：**1.0.4**）。實測過較新版本後，改 `bin/new-project.mjs` 的 `SPECKIT_VERSION_SUPPORT`，讓警告或拒絕對上已驗證的範圍。
 2. 大版本若改旗標，掃過 `specify init --help` 與 `specify integration install --help`
 3. 確認 bundled `speckit` workflow 仍有這些 step id（overlay 錨點）：`specify`、`review-spec`、`plan`、`review-plan`、`tasks`、`implement`
 4. 煙霧測試：`node bin/new-project.mjs --only grok --no-git smoke-app --dir %TEMP%`（或 `$TMPDIR`）
 5. 在測試專案確認 `.specify/workflows/overlays/speckit/chained-sdd.yml` 存在，且 `specify workflow resolve speckit` 顯示 clarify／analyze／converge、沒有 review gate
 6. 若步驟 2–5 需要改啟動器或 overlay，再 commit
 
-已經建好的 app 在 **那個 repo** 升級：
+已經建好的 app 在 **那個 repo** 升級。不要把 `new-project.mjs --here` 當升級路徑——那會跑 `specify init --here --force`。
+
+用下面的指令刷新啟動器擁有的第 2 層檔案：
+
+```bash
+npx speckit-launch upgrade                 # 只印計畫，不寫檔
+npx speckit-launch upgrade --apply         # 寫入允許清單
+npx speckit-launch upgrade --dir <path>    # 目標專案（預設目前目錄）
+```
+
+`--dry-run` 是預設行為的明示旗標。目標沒有 `.specify/`（不是 Spec Kit 專案）、Spec Kit 低於 1.0.0、或是 2.0.0 以上，都失敗。比 1.0.4 新的 1.x 會警告並繼續。每個檔案印 `same`、`update`、`skip` 或 `add`。dry-run 的 `update` 表示將會寫入。
+
+`--apply` 只更新：
+
+- `.specify/workflows/overlays/speckit/chained-sdd.yml`（`specify workflow overlay list speckit` 已顯示 chained-sdd enabled 時只覆寫檔案；否則 `--apply` 先跑 `specify workflow overlay add`，dry-run 不會真的 add）
+- `.agents/skills/speckit-clarify`、`speckit-analyze`、`speckit-implement`、`speckit-converge` 的 `SKILL.md`（腳本類型先讀 `.specify/init-options.json` 的 `script`，沒有再看 `.specify/scripts`；bash 與 powershell 同時存在時不預設 bash）
+- `.cursor/rules/speckit-pipeline.mdc`
+- `scripts/link-agent-skills.mjs` 與 `scripts/new-worktree.mjs`
+- `.specify/presets/chained-sdd/` 裡啟動器已知的檔（該目錄多出來的檔保留；不靠 `specify preset add`，已安裝時它會 skip）
+
+它不會跑 `specify init` 或 `specify integration install --force`，也不會重寫 `workflow.yml`、`.specify/templates/`、`.specify/scripts/`、已填的 `constitution.md`、`.gitignore`、`.gitattributes`、`package.json`。可選範本（`changelog`、`commit-checks`、`shell-encoding`、`commit-push-pr`、hooks、`safety-check`）只有缺檔才複製。`.agents/AGENTS.md` 只在成對標記 `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` 中間替換。只有開頭、沒有結尾標記時 skip（`pipeline section has no end marker`）。
+
+Specify CLI 本身的升級仍在該 app 另外做：
 
 ```bash
 specify integration upgrade          # 每個已安裝的 integration key 跑一次
@@ -198,8 +224,6 @@ specify extension update
 specify extension add git            # 若專案是在啟動器改為安裝 git extension 之前建立的
 node scripts/link-agent-skills.mjs   # 若該專案有用 skill mount
 ```
-
-不要把 `new-project.mjs --here` 當升級路徑。
 
 ## clone 之後
 

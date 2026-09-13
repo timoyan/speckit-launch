@@ -17,6 +17,9 @@
  *   --script sh|ps|py   Script type (default: ps on Windows, sh elsewhere)
  *   --no-git            Skip git init and the Spec Kit git extension
  *   --help              Show help
+ *
+ *   node bin/new-project.mjs upgrade [--apply] [--dry-run] [--dir <path>]
+ *     Refresh launcher-owned layer 2 files. Default is dry-run (no writes).
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -29,7 +32,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
@@ -107,6 +110,7 @@ function usage() {
   console.log(`Usage:
   node bin/new-project.mjs <name> [--dir <parent>] [--primary <agent>] [--script sh|ps|py] [--only <agent>] [--no-git] [--non-interactive]
   node bin/new-project.mjs --here [--dir <path>] [--primary <agent>] [--script sh|ps|py] [--only <agent>] [--no-git] [--non-interactive]
+  node bin/new-project.mjs upgrade [--apply] [--dry-run] [--dir <path>]
 
 Default: install mainstream integrations (${MAINSTREAM_INTEGRATIONS.join(", ")})
 Default parent for <name>: current working directory
@@ -115,13 +119,164 @@ Default --script: ${defaultScript()} (win32=ps, else sh)
 --only <integration>: install a single Spec Kit integration instead of all mainstream
 --non-interactive: skip interactive prompts and use auto-detected defaults
 --no-git: skip git init and the Spec Kit git extension (no feature-branch hook)
+upgrade: refresh launcher-owned layer 2 files in an existing Spec Kit project.
+  Default is dry-run (print same / update / skip, write nothing). --apply writes.
+  --dry-run is the explicit form of the default. --dir defaults to cwd.
+  Do not use --here as an upgrade path.
 --version, -v: print version
 --help, -h: show usage`);
+}
+
+function upgradeUsage() {
+  console.log(`Usage:
+  node bin/new-project.mjs upgrade [--apply] [--dry-run] [--dir <path>]
+
+Refresh launcher-owned layer 2 files in an existing Spec Kit project.
+Default: print a plan (same / update / skip / add) and write nothing.
+--apply: write allowlisted files
+--dry-run: explicit form of the default (no writes)
+--dir <path>: target project (default: current directory)
+
+Fails if the target has no .specify/ (not a Spec Kit project).
+Supported Spec Kit: >=1.0.0 <2.0.0 (last smoke-tested 1.0.4).
+Below 1.0.0 or at/above 2.0.0, init and upgrade fail.
+A newer 1.x than 1.0.4 warns and continues.
+Upgrade reads .specify/init-options.json speckit_version; missing specify on PATH warns and continues.
+Does not run specify init, does not seed constitution, and does not overwrite
+optional process starters that already exist.`);
 }
 
 function die(msg, code = 1) {
   console.error(msg);
   process.exit(code);
+}
+
+/** Overlay step ids and `.specify/workflows/overlays/` are a Spec Kit 1.0 contract. */
+const SPECKIT_VERSION_SUPPORT = {
+  min: "1.0.0",
+  tested: "1.0.4",
+  maxExclusive: "2.0.0",
+};
+
+const OVERLAY_STEP_IDS = "specify, review-spec, plan, review-plan, tasks, implement";
+
+function speckitRangeLabel() {
+  const { min, maxExclusive } = SPECKIT_VERSION_SUPPORT;
+  return `>=${min} <${maxExclusive}`;
+}
+
+function parseSpeckitVersion(input) {
+  const m = String(input ?? "").match(/(\d+)\.(\d+)\.(\d+)([.-][0-9A-Za-z.-]+)?/);
+  if (!m) return null;
+  return {
+    major: Number(m[1]),
+    minor: Number(m[2]),
+    patch: Number(m[3]),
+    raw: `${m[1]}.${m[2]}.${m[3]}`,
+    display: `${m[1]}.${m[2]}.${m[3]}${m[4] || ""}`,
+  };
+}
+
+function cmpSpeckitVersion(a, b) {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
+}
+
+function assessSpeckitVersion(input) {
+  const parsed =
+    input && typeof input === "object" && "major" in input ? input : parseSpeckitVersion(input);
+  const range = speckitRangeLabel();
+  if (!parsed) {
+    const shown = String(input ?? "").trim().slice(0, 80) || "(empty)";
+    return {
+      level: "warn",
+      code: "unparsed",
+      message: `could not parse Spec Kit version from "${shown}". Supported range is ${range}. Continuing.`,
+    };
+  }
+  const min = parseSpeckitVersion(SPECKIT_VERSION_SUPPORT.min);
+  const tested = parseSpeckitVersion(SPECKIT_VERSION_SUPPORT.tested);
+  const max = parseSpeckitVersion(SPECKIT_VERSION_SUPPORT.maxExclusive);
+  const label = parsed.display || parsed.raw;
+  if (cmpSpeckitVersion(parsed, min) < 0) {
+    return {
+      level: "error",
+      code: "too-old",
+      message: `${label} is older than ${SPECKIT_VERSION_SUPPORT.min}. Supported range is ${range}. Overlay step ids (${OVERLAY_STEP_IDS}) and .specify/workflows/overlays/ need Spec Kit 1.0+.`,
+    };
+  }
+  if (cmpSpeckitVersion(parsed, max) >= 0) {
+    return {
+      level: "error",
+      code: "too-new",
+      message: `${label} is outside ${range} (last smoke-tested ${SPECKIT_VERSION_SUPPORT.tested}). Refusing so a 1.0 overlay is not written onto an untested major. After verifying step ids (${OVERLAY_STEP_IDS}), raise SPECKIT_VERSION_SUPPORT.maxExclusive in bin/new-project.mjs.`,
+    };
+  }
+  if (cmpSpeckitVersion(parsed, tested) > 0) {
+    return {
+      level: "warn",
+      code: "newer-than-tested",
+      message: `${label} is newer than the last smoke-tested ${SPECKIT_VERSION_SUPPORT.tested} (still within ${range}). Continuing. If workflow resolve drops clarify/analyze/converge, overlay step ids changed.`,
+    };
+  }
+  return { level: "ok", code: "ok", message: "" };
+}
+
+function readCliSpeckitVersion() {
+  if (!which("specify")) return { present: false, source: "CLI" };
+  const text = specifyCliOutput(specifyCli(["--version"]));
+  const parsed = parseSpeckitVersion(text);
+  return {
+    present: true,
+    source: "CLI",
+    display: parsed?.display ?? text.trim().slice(0, 80),
+    parsed,
+  };
+}
+
+function readProjectSpeckitVersion(projectRoot) {
+  const path = join(projectRoot, ".specify", "init-options.json");
+  if (!existsSync(path)) return { present: false, source: "project" };
+  let field;
+  try {
+    field = JSON.parse(readText(path))?.speckit_version;
+  } catch {
+    return { present: true, source: "project", display: "", parsed: null };
+  }
+  if (field == null || field === "") return { present: false, source: "project" };
+  const parsed = parseSpeckitVersion(String(field));
+  return { present: true, source: "project", display: String(field), parsed };
+}
+
+function enforceSpeckitVersion({ projectRoot, requireCli = false } = {}) {
+  const cli = readCliSpeckitVersion();
+  const project = projectRoot ? readProjectSpeckitVersion(projectRoot) : { present: false };
+  if (requireCli && !cli.present) {
+    die(
+      `Could not run \`specify --version\`. Install Spec Kit ${speckitRangeLabel()} (last smoke-tested ${SPECKIT_VERSION_SUPPORT.tested}).`,
+    );
+  }
+  const checks = [cli, project].filter((c) => c.present);
+  if (checks.length === 0) {
+    console.warn(
+      `warn: could not read Spec Kit version (no \`specify --version\` and no .specify/init-options.json speckit_version). Supported range is ${speckitRangeLabel()}. Continuing.`,
+    );
+    return { level: "warn" };
+  }
+  if (cli.parsed && project.parsed && cli.parsed.raw !== project.parsed.raw) {
+    console.warn(
+      `warn: PATH specify is ${cli.display} but .specify/init-options.json speckit_version is ${project.display}. The overlay is composed against the installed workflow.yml, not only the CLI.`,
+    );
+  }
+  const errors = [];
+  for (const check of checks) {
+    const result = assessSpeckitVersion(check.parsed ?? check.display);
+    if (result.level === "error") errors.push(`${check.source}: ${result.message}`);
+    else if (result.level === "warn") console.warn(`warn: ${check.source}: ${result.message}`);
+  }
+  if (errors.length) die(errors.join("\n"));
+  return { level: "ok" };
 }
 
 function parseArgs(argv) {
@@ -631,8 +786,19 @@ function writeOptionalProcessTemplates(projectRoot) {
   }
 }
 
-const PIPELINE_MARKER = "<!-- speckit-launch:pipeline -->";
+const PIPELINE_START = "<!-- speckit-launch:pipeline -->";
+const PIPELINE_END = "<!-- /speckit-launch:pipeline -->";
+const PIPELINE_MARKER = PIPELINE_START;
 const PIPELINE_NEEDLE = "specify → clarify → plan → tasks → analyze";
+
+const LAYER2_SKILLS = [
+  "speckit-clarify",
+  "speckit-analyze",
+  "speckit-implement",
+  "speckit-converge",
+];
+
+const LAYER2_HELPER_SCRIPTS = ["link-agent-skills.mjs", "new-worktree.mjs"];
 
 const AGENT_DOC_CANDIDATES = [
   "AGENTS.md",
@@ -661,6 +827,328 @@ function getPipelineRules() {
   return "";
 }
 
+function readInitOptionsScript(projectRoot) {
+  const path = join(projectRoot, ".specify", "init-options.json");
+  if (!existsSync(path)) return null;
+  try {
+    const script = JSON.parse(readText(path))?.script;
+    if (script == null || script === "") return null;
+    const normalized = String(script).trim().toLowerCase();
+    if (normalized === "sh" || normalized === "ps" || normalized === "py") return normalized;
+  } catch {
+    /* ignore malformed init-options */
+  }
+  return null;
+}
+
+function detectProjectScriptType(projectRoot) {
+  const fromOptions = readInitOptionsScript(projectRoot);
+  if (fromOptions) return fromOptions;
+
+  const scripts = join(projectRoot, ".specify", "scripts");
+  const hasBash = existsSync(join(scripts, "bash"));
+  const hasPwsh = existsSync(join(scripts, "powershell"));
+  const hasPy = existsSync(join(scripts, "python"));
+  // bash and powershell together must not become sh just because the bash dir exists.
+  if (hasBash && hasPwsh) return "ps";
+  const present = [hasBash && "sh", hasPwsh && "ps", hasPy && "py"].filter(Boolean);
+  if (present.length === 1) return present[0];
+  if (present.length === 0) return IS_WINDOWS ? "ps" : "sh";
+  const osDefault = IS_WINDOWS ? "ps" : "sh";
+  if (present.includes(osDefault)) return osDefault;
+  return present.find((script) => script !== "sh") || present[0];
+}
+
+function renderPipelineSection(rules) {
+  const body = String(rules || "").trim();
+  return body
+    ? `${PIPELINE_START}\n\n${body}\n\n${PIPELINE_END}`
+    : `${PIPELINE_START}\n${PIPELINE_END}`;
+}
+
+function replacePipelineSection(text, rules) {
+  const start = text.indexOf(PIPELINE_START);
+  if (start < 0) {
+    return { status: "skip", note: "no pipeline markers", text };
+  }
+  const end = text.indexOf(PIPELINE_END, start + PIPELINE_START.length);
+  if (end < 0) {
+    return { status: "skip", note: "pipeline section has no end marker", text };
+  }
+  const next = text.slice(0, start) + renderPipelineSection(rules) + text.slice(end + PIPELINE_END.length);
+  if (next === text) return { status: "same", text: next };
+  return { status: "update", text: next };
+}
+
+function listFilesRel(rootDir) {
+  const out = [];
+  function walk(dir) {
+    if (!existsSync(dir)) return;
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else if (ent.isFile()) out.push(relative(rootDir, abs).replaceAll("\\", "/"));
+    }
+  }
+  walk(rootDir);
+  return out.sort();
+}
+
+function planTextFile(relPath, destAbs, desired) {
+  if (!existsSync(destAbs)) {
+    return { status: "update", path: relPath, destAbs, desired };
+  }
+  if (readText(destAbs) === desired) {
+    return { status: "same", path: relPath };
+  }
+  return { status: "update", path: relPath, destAbs, desired };
+}
+
+function planAddIfMissing(relPath, destAbs, desired) {
+  if (existsSync(destAbs)) {
+    return { status: "skip", path: relPath };
+  }
+  return { status: "add", path: relPath, destAbs, desired };
+}
+
+function formatLayer2Line(action) {
+  const note = action.note ? `  ${action.note}` : "";
+  return `${action.status}  ${action.path}${note}`;
+}
+
+function layer2DesiredFiles(projectRoot, scriptType) {
+  const actions = [];
+  const presetRoot = join(STARTER_ROOT, "presets", "chained-sdd");
+
+  for (const name of LAYER2_SKILLS) {
+    const relPath = `.agents/skills/${name}/SKILL.md`;
+    const raw = readText(join(presetRoot, "skills", name, "SKILL.md"));
+    actions.push(
+      planTextFile(
+        relPath,
+        join(projectRoot, ...relPath.split("/")),
+        adaptSkillScript(raw, scriptType),
+      ),
+    );
+  }
+
+  const pipelineRuleRel = ".cursor/rules/speckit-pipeline.mdc";
+  actions.push(
+    planTextFile(
+      pipelineRuleRel,
+      join(projectRoot, ...pipelineRuleRel.split("/")),
+      readText(join(presetRoot, "rules", "speckit-pipeline.mdc")),
+    ),
+  );
+
+  for (const scriptName of LAYER2_HELPER_SCRIPTS) {
+    const relPath = `scripts/${scriptName}`;
+    actions.push(
+      planTextFile(
+        relPath,
+        join(projectRoot, "scripts", scriptName),
+        readText(join(STARTER_ROOT, "scripts", scriptName)),
+      ),
+    );
+  }
+
+  for (const rel of listFilesRel(presetRoot)) {
+    const relPath = `.specify/presets/chained-sdd/${rel}`;
+    actions.push(
+      planTextFile(
+        relPath,
+        join(projectRoot, ".specify", "presets", "chained-sdd", ...rel.split("/")),
+        readText(join(presetRoot, ...rel.split("/"))),
+      ),
+    );
+  }
+
+  return actions;
+}
+
+function layer2OptionalFiles(projectRoot) {
+  const actions = [];
+  for (const rule of PROCESS_RULES) {
+    const src = join(TEMPLATES, "rules", `${rule.name}.md`);
+    if (!existsSync(src)) continue;
+    const body = readText(src);
+    const agentsRel = `.agents/rules/${rule.name}.md`;
+    actions.push(
+      planAddIfMissing(
+        agentsRel,
+        join(projectRoot, ...agentsRel.split("/")),
+        body,
+      ),
+    );
+    const cursorRel = `.cursor/rules/${rule.name}.mdc`;
+    actions.push(
+      planAddIfMissing(
+        cursorRel,
+        join(projectRoot, ...cursorRel.split("/")),
+        cursorAlwaysApplyRule(rule.description, body),
+      ),
+    );
+  }
+
+  const copies = [
+    [
+      ".agents/skills/commit-push-pr/SKILL.md",
+      join(TEMPLATES, "skills", "commit-push-pr", "SKILL.md"),
+    ],
+    [
+      ".agents/scripts/safety-check.cjs",
+      join(TEMPLATES, "agents", "scripts", "safety-check.cjs"),
+    ],
+    [".agents/hooks.json", join(TEMPLATES, "agents", "hooks.json")],
+  ];
+  for (const [relPath, src] of copies) {
+    if (!existsSync(src)) continue;
+    actions.push(
+      planAddIfMissing(
+        relPath,
+        join(projectRoot, ...relPath.split("/")),
+        readText(src),
+      ),
+    );
+  }
+  return actions;
+}
+
+function layer2AgentsAction(projectRoot) {
+  const relPath = ".agents/AGENTS.md";
+  const destAbs = join(projectRoot, ".agents", "AGENTS.md");
+  if (!existsSync(destAbs)) {
+    return { status: "skip", path: relPath, note: "missing" };
+  }
+  const existing = readText(destAbs);
+  const replaced = replacePipelineSection(existing, getPipelineRules());
+  if (replaced.status === "skip") {
+    return { status: "skip", path: relPath, note: replaced.note };
+  }
+  if (replaced.status === "same") {
+    return { status: "same", path: relPath };
+  }
+  return { status: "update", path: relPath, destAbs, desired: replaced.text };
+}
+
+const OVERLAY_REL = ".specify/workflows/overlays/speckit/chained-sdd.yml";
+const OVERLAY_ADD_NOTE = "specify workflow overlay add --priority 10";
+
+function overlaySourcePath() {
+  return join(STARTER_ROOT, "presets", "chained-sdd", "workflows", "chained-sdd.yml");
+}
+
+function overlayDestPath(projectRoot) {
+  return join(projectRoot, ...OVERLAY_REL.split("/"));
+}
+
+function overlayTextLooksRegistered(text) {
+  if (!/(^|\n)\s*id:\s*["']?chained-sdd["']?\s*(?:\n|$)/.test(text)) return false;
+  if (/(^|\n)\s*enabled:\s*false\s*(?:\n|$)/i.test(text)) return false;
+  return true;
+}
+
+function overlayListShowsEnabled(text) {
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.includes("chained-sdd")) continue;
+    if (/\bdisabled\b/i.test(line)) return false;
+    if (/\benabled\b/i.test(line)) return true;
+  }
+  return false;
+}
+
+function overlayLooksRegisteredOnDisk(projectRoot) {
+  const dest = overlayDestPath(projectRoot);
+  return existsSync(dest) && overlayTextLooksRegistered(readText(dest));
+}
+
+function readOverlayRegistration(projectRoot, runSpecify) {
+  const listed = runSpecify(["workflow", "overlay", "list", "speckit"], projectRoot);
+  if (!listed || listed.status !== 0) return { known: false, enabled: false };
+  return { known: true, enabled: overlayListShowsEnabled(specifyCliOutput(listed)) };
+}
+
+function overlayNeedsAdd(projectRoot, registration) {
+  if (registration.known) return !registration.enabled;
+  return !overlayLooksRegisteredOnDisk(projectRoot);
+}
+
+function layer2OverlayAction(projectRoot, { needsAdd, dryRun }) {
+  const destAbs = overlayDestPath(projectRoot);
+  const desired = readText(overlaySourcePath());
+  const action = planTextFile(OVERLAY_REL, destAbs, desired);
+  if (!needsAdd) return action;
+  return {
+    ...action,
+    status: action.status === "same" ? "update" : action.status,
+    destAbs,
+    desired,
+    overlayAdd: true,
+    note: dryRun ? `would run ${OVERLAY_ADD_NOTE}` : OVERLAY_ADD_NOTE,
+  };
+}
+
+function registerOverlayOrCopy(projectRoot, action, runSpecify) {
+  const added = runSpecify(
+    ["workflow", "overlay", "add", overlaySourcePath(), "--priority", "10"],
+    projectRoot,
+  );
+  if (added && added.status === 0) {
+    console.log(
+      "installed speckit workflow overlay chained-sdd (clarify/analyze/converge; no fixed review gates)",
+    );
+    return;
+  }
+  mkdirSync(dirname(action.destAbs), { recursive: true });
+  writeText(action.destAbs, action.desired);
+  const detail = added ? specifyCliOutput(added).split("\n")[0] : "specify not available";
+  console.log(`wrote ${action.path} (${OVERLAY_ADD_NOTE} skipped: ${detail || "overlay add failed"})`);
+}
+
+/**
+ * Shared layer-2 sync used by first install and `speckit-launch upgrade`.
+ * dryRun prints the plan and writes nothing. `update` on a dry-run means the
+ * file would be written. Optional starters are `add` only when missing.
+ * A missing or unregistered chained-sdd overlay is registered with
+ * `specify workflow overlay add` on apply; dry-run does not run that command.
+ */
+function syncLayer2(projectRoot, { dryRun = true, scriptType, runSpecify = specifyCli } = {}) {
+  const root = resolve(projectRoot);
+  if (!existsSync(join(root, ".specify"))) {
+    die(`${root} is not a Spec Kit project (missing .specify/).`);
+  }
+
+  const resolvedScript = scriptType || detectProjectScriptType(root);
+  const registration = readOverlayRegistration(root, runSpecify);
+  if (!registration.known && runSpecify === specifyCli && !which("specify")) {
+    console.warn(
+      "warn: specify is not on PATH; overlay registration was not confirmed. Continuing.",
+    );
+  }
+  const needsAdd = overlayNeedsAdd(root, registration);
+  const actions = [
+    layer2OverlayAction(root, { needsAdd, dryRun }),
+    ...layer2DesiredFiles(root, resolvedScript),
+    ...layer2OptionalFiles(root),
+    layer2AgentsAction(root),
+  ];
+
+  console.log(dryRun ? "dry-run (no files written)" : "apply");
+  for (const action of actions) {
+    console.log(formatLayer2Line(action));
+    if (dryRun) continue;
+    if (action.overlayAdd) {
+      registerOverlayOrCopy(root, action, runSpecify);
+      continue;
+    }
+    if (action.status !== "update" && action.status !== "add") continue;
+    mkdirSync(dirname(action.destAbs), { recursive: true });
+    writeText(action.destAbs, action.desired);
+  }
+
+  return { dryRun, scriptType: resolvedScript, actions };
+}
+
 function writeAgentsFiles(projectRoot) {
   const agentsDir = join(projectRoot, ".agents");
   mkdirSync(agentsDir, { recursive: true });
@@ -674,22 +1162,22 @@ function writeAgentsFiles(projectRoot) {
   const agentsMd = join(agentsDir, "AGENTS.md");
   const template = readText(join(TEMPLATES, "AGENTS.md"));
   const pipelineRules = getPipelineRules();
-  const pipelineBlock = pipelineRules ? `${PIPELINE_MARKER}\n\n${pipelineRules}` : PIPELINE_MARKER;
 
   if (!existsSync(agentsMd)) {
-    writeText(agentsMd, template.replace(PIPELINE_MARKER, pipelineBlock));
+    const rendered = replacePipelineSection(template, pipelineRules);
+    writeText(agentsMd, rendered.text);
     console.log("wrote .agents/AGENTS.md");
     return;
   }
 
   const existing = readText(agentsMd);
-  if (existing.includes(PIPELINE_MARKER) || existing.includes(PIPELINE_NEEDLE)) {
+  if (existing.includes(PIPELINE_START) || existing.includes(PIPELINE_NEEDLE)) {
     console.log(".agents/AGENTS.md already has Spec Kit pipeline; skipping");
     return;
   }
 
   const sep = existing.endsWith("\n") ? "\n" : "\n\n";
-  writeText(agentsMd, existing.trimEnd() + sep + pipelineBlock + "\n");
+  writeText(agentsMd, existing.trimEnd() + sep + renderPipelineSection(pipelineRules) + "\n");
   console.log("merged Spec Kit pipeline into .agents/AGENTS.md");
 }
 
@@ -736,37 +1224,6 @@ function specifyCli(args, cwd) {
 
 function specifyCliOutput(r) {
   return `${r.stdout || ""}\n${r.stderr || ""}\n${r.error?.message || ""}`.trim();
-}
-
-function overlaySpeckitWorkflow(projectRoot) {
-  if (!existsSync(join(projectRoot, ".specify"))) {
-    console.warn("warn: .specify/ missing; skipped workflow overlay");
-    return;
-  }
-
-  const overlaySrc = join(STARTER_ROOT, "presets", "chained-sdd", "workflows", "chained-sdd.yml");
-  const destDir = join(projectRoot, ".specify", "workflows", "overlays", "speckit");
-  const dest = join(destDir, "chained-sdd.yml");
-  mkdirSync(destDir, { recursive: true });
-
-  // Spec Kit 1.0+ composes overlays on top of the bundled workflow.yml.
-  // Do not overwrite the installed workflow — `specify workflow update`
-  // can refresh the base while this overlay keeps the chained SDD steps.
-  if (existsSync(dest)) {
-    copyTextFile(overlaySrc, dest);
-    console.log("refreshed .specify/workflows/overlays/speckit/chained-sdd.yml");
-    return;
-  }
-
-  const r = specifyCli(["workflow", "overlay", "add", overlaySrc, "--priority", "10"], projectRoot);
-  if (r.status === 0) {
-    console.log("installed speckit workflow overlay chained-sdd (clarify/analyze/converge; no fixed review gates)");
-    return;
-  }
-
-  copyTextFile(overlaySrc, dest);
-  const detail = specifyCliOutput(r).split("\n")[0] || "overlay add failed";
-  console.log(`wrote ${dest} (specify workflow overlay add skipped: ${detail})`);
 }
 
 function installChainedSddPreset(projectRoot) {
@@ -996,7 +1453,45 @@ function resolveProjectDir(opts) {
   return target;
 }
 
+function parseUpgradeArgs(argv) {
+  const opts = { dryRun: true, dir: null, help: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--help" || a === "-h") opts.help = true;
+    else if (a === "--apply") opts.dryRun = false;
+    else if (a === "--dry-run") opts.dryRun = true;
+    else if (a === "--dir") {
+      opts.dir = argv[++i];
+      if (!opts.dir) die("--dir requires a path");
+    } else if (a.startsWith("-")) {
+      die(`Unknown flag: ${a}`);
+    } else {
+      die(`Unexpected argument: ${a}\nUse --dir <path> to choose the target project.`);
+    }
+  }
+  return opts;
+}
+
+function runUpgrade(argv) {
+  const opts = parseUpgradeArgs(argv);
+  if (opts.help) {
+    upgradeUsage();
+    return;
+  }
+  const projectRoot = opts.dir ? resolve(opts.dir) : process.cwd();
+  if (!existsSync(join(projectRoot, ".specify"))) {
+    die(`${projectRoot} is not a Spec Kit project (missing .specify/).`);
+  }
+  enforceSpeckitVersion({ projectRoot });
+  syncLayer2(projectRoot, { dryRun: opts.dryRun });
+}
+
 async function main() {
+  const argv = process.argv.slice(2);
+  if (argv[0] === "upgrade") {
+    runUpgrade(argv.slice(1));
+    return;
+  }
   const opts = parseArgs(process.argv.slice(2));
   if (opts.version) {
     const pkg = JSON.parse(readText(join(STARTER_ROOT, "package.json")));
@@ -1019,6 +1514,7 @@ async function main() {
   console.log(`Script: ${opts.script}`);
 
   ensureSpecify();
+  enforceSpeckitVersion({ requireCli: true });
 
   if (!opts.noGit && !isGitRepo(projectRoot)) {
     run("git", ["init"], projectRoot);
@@ -1028,16 +1524,12 @@ async function main() {
     noGit: opts.noGit,
   });
   moveSpeckitSkills(projectRoot);
-  applyEnhancedSpeckitSkills(projectRoot, opts.script);
   writeAgentsFiles(projectRoot);
-  writeCursorPipelineRule(projectRoot);
-  writeOptionalProcessTemplates(projectRoot);
-  overlaySpeckitWorkflow(projectRoot);
+  syncLayer2(projectRoot, { dryRun: false, scriptType: opts.script });
   const presetInstalled = installChainedSddPreset(projectRoot);
   seedConstitutionPipeline(projectRoot, { presetInstalled });
   ensureAgentBridgeFiles(projectRoot, keys);
   mergePipelinePointerIntoAgentDocs(projectRoot);
-  copyHelperScripts(projectRoot);
   runLinkScript(projectRoot);
   updatePackageJsonScripts(projectRoot);
   mergeGitignore(projectRoot);
@@ -1099,6 +1591,10 @@ Re-launch later:
 
 export {
   parseArgs,
+  SPECKIT_VERSION_SUPPORT,
+  parseSpeckitVersion,
+  assessSpeckitVersion,
+  enforceSpeckitVersion,
   getPipelineRules,
   adaptSkillScript,
   defaultScript,
@@ -1109,7 +1605,11 @@ export {
   ensureAgentBridgeFiles,
   writeOptionalProcessTemplates,
   writeProcessRules,
+  writeAgentsFiles,
   mergeGitattributes,
+  syncLayer2,
+  replacePipelineSection,
+  detectProjectScriptType,
   AGENT_INTEGRATIONS,
 };
 

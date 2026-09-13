@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,8 @@ import { spawnSync } from "node:child_process";
 
 import {
   parseArgs,
+  assessSpeckitVersion,
+  detectProjectScriptType,
   getPipelineRules,
   adaptSkillScript,
   selectPrimaryIntegration,
@@ -18,9 +20,25 @@ import {
   writeOptionalProcessTemplates,
   writeProcessRules,
   mergeGitattributes,
+  syncLayer2,
+  replacePipelineSection,
 } from "../bin/new-project.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+test("assessSpeckitVersion fails outside 1.x and warns on newer-than-tested", () => {
+  assert.equal(assessSpeckitVersion("0.9.1").code, "too-old");
+  assert.equal(assessSpeckitVersion("0.9.1").level, "error");
+  assert.equal(assessSpeckitVersion("1.0.0").level, "ok");
+  assert.equal(assessSpeckitVersion("1.0.4").level, "ok");
+  const newer = assessSpeckitVersion("specify 1.0.6.dev0");
+  assert.equal(newer.level, "warn");
+  assert.equal(newer.code, "newer-than-tested");
+  assert.match(newer.message, /1\.0\.6\.dev0/);
+  assert.equal(assessSpeckitVersion("2.0.0").code, "too-new");
+  assert.equal(assessSpeckitVersion("not a version").code, "unparsed");
+  assert.equal(assessSpeckitVersion("not a version").level, "warn");
+});
 
 test("getPipelineRules returns canonical pipeline rules", () => {
   const rules = getPipelineRules();
@@ -146,17 +164,20 @@ test("templates/AGENTS.md has clean injection marker", () => {
   assert.ok(existsSync(templatePath));
   const content = readFileSync(templatePath, "utf8");
   const marker = "<!-- speckit-launch:pipeline -->";
+  const endMarker = "<!-- /speckit-launch:pipeline -->";
   assert.ok(content.includes(marker), "AGENTS.md template must contain injection marker");
+  assert.ok(content.includes(endMarker), "AGENTS.md template must contain the pipeline end marker");
   assert.ok(
     !content.includes("specify → clarify → plan"),
     "AGENTS.md template must not contain inline hardcoded pipeline duplicate",
   );
 
-  // Injection test
   const rules = getPipelineRules();
-  const injected = content.replace(marker, `${marker}\n\n${rules}`);
-  assert.ok(injected.includes("specify → clarify → plan"));
-  assert.ok(injected.includes("One-time project setup"));
+  const injected = replacePipelineSection(content, rules);
+  assert.equal(injected.status, "update");
+  assert.ok(injected.text.includes("specify → clarify → plan"));
+  assert.ok(injected.text.includes("One-time project setup"));
+  assert.ok(injected.text.indexOf("One-time project setup") > injected.text.indexOf(endMarker));
 });
 
 test("presets/chained-sdd integrity", () => {
@@ -305,6 +326,271 @@ test("ensureAgentBridgeFiles creates bridge files pointing to .agents/AGENTS.md"
     assert.ok(existsSync(copilotPath), ".github/copilot-instructions.md must be created");
     const copilotContent = readFileSync(copilotPath, "utf8");
     assert.ok(copilotContent.includes(".agents/AGENTS.md"));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+function writeUpgradeFixture(root) {
+  const touch = (rel, body) => {
+    const dest = join(root, ...rel.split("/"));
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, body);
+  };
+  mkdirSync(join(root, ".specify", "scripts", "bash"), { recursive: true });
+  touch(".specify/workflows/speckit/workflow.yml", "bundled-workflow-do-not-touch\n");
+  touch(".specify/workflows/overlays/speckit/chained-sdd.yml", "old-overlay\n");
+  touch(".specify/memory/constitution.md", "# Product constitution\n\nFilled principle for this product.\n");
+  touch(".specify/templates/spec-template.md", "product-template\n");
+  touch(".specify/presets/chained-sdd/local-extra.md", "keep-me\n");
+  touch(".agents/skills/speckit-clarify/SKILL.md", "old skill still has -Json\n");
+  touch(".cursor/rules/speckit-pipeline.mdc", "old-pipeline\n");
+  touch(".agents/rules/changelog.md", "custom changelog rule\n");
+  touch(".cursor/rules/changelog.mdc", "custom changelog mirror\n");
+  touch(
+    ".agents/AGENTS.md",
+    "# Product\n\nDo not rewrite this paragraph.\n\n<!-- speckit-launch:pipeline -->\n\nold pipeline prose\n",
+  );
+  touch(".gitignore", "keep-gitignore\n");
+  touch("package.json", '{"name":"keep"}\n');
+  touch("scripts/link-agent-skills.mjs", "old-link\n");
+  return {
+    overlay: join(root, ".specify", "workflows", "overlays", "speckit", "chained-sdd.yml"),
+    constitution: join(root, ".specify", "memory", "constitution.md"),
+    changelog: join(root, ".agents", "rules", "changelog.md"),
+    agents: join(root, ".agents", "AGENTS.md"),
+    skill: join(root, ".agents", "skills", "speckit-clarify", "SKILL.md"),
+    workflow: join(root, ".specify", "workflows", "speckit", "workflow.yml"),
+    extra: join(root, ".specify", "presets", "chained-sdd", "local-extra.md"),
+    gitignore: join(root, ".gitignore"),
+    pkg: join(root, "package.json"),
+  };
+}
+
+function snapshot(paths) {
+  return Object.fromEntries(Object.entries(paths).map(([key, file]) => [key, readFileSync(file, "utf8")]));
+}
+
+function specifyListsEnabled() {
+  return {
+    status: 0,
+    stdout: "• chained-sdd (priority=10, source=project:chained-sdd, enabled)\n",
+    stderr: "",
+  };
+}
+
+test("detectProjectScriptType prefers init-options and does not default to bash when both shells exist", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-script-"));
+  try {
+    mkdirSync(join(tmp, ".specify", "scripts", "bash"), { recursive: true });
+    mkdirSync(join(tmp, ".specify", "scripts", "powershell"), { recursive: true });
+    assert.equal(detectProjectScriptType(tmp), "ps");
+
+    writeFileSync(join(tmp, ".specify", "init-options.json"), JSON.stringify({ script: "ps" }));
+    rmSync(join(tmp, ".specify", "scripts", "powershell"), { recursive: true, force: true });
+    assert.equal(detectProjectScriptType(tmp), "ps");
+
+    writeFileSync(join(tmp, ".specify", "init-options.json"), JSON.stringify({ script: "py" }));
+    assert.equal(detectProjectScriptType(tmp), "py");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("missing overlay is registered with overlay add on apply, not on dry-run", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-overlay-add-"));
+  try {
+    mkdirSync(join(tmp, ".specify"), { recursive: true });
+    const calls = [];
+    const runSpecify = (args) => {
+      calls.push(args);
+      if (args[2] === "list") return { status: 0, stdout: "No overlays found\n", stderr: "" };
+      return { status: 0, stdout: "added\n", stderr: "" };
+    };
+    const overlay = join(tmp, ".specify", "workflows", "overlays", "speckit", "chained-sdd.yml");
+
+    const dry = syncLayer2(tmp, { dryRun: true, runSpecify });
+    assert.equal(calls.some((args) => args[2] === "add"), false);
+    assert.equal(existsSync(overlay), false);
+    const planned = dry.actions.find((a) => a.path.endsWith("overlays/speckit/chained-sdd.yml"));
+    assert.match(planned.note, /would run specify workflow overlay add --priority 10/);
+
+    const applied = syncLayer2(tmp, { dryRun: false, runSpecify });
+    const add = calls.find((args) => args[1] === "overlay" && args[2] === "add");
+    assert.ok(add, "apply should register a missing overlay");
+    assert.equal(add[4], "--priority");
+    assert.equal(add[5], "10");
+    assert.equal(existsSync(overlay), false, "successful overlay add must not fall back to a raw copy");
+    const action = applied.actions.find((a) => a.path.endsWith("overlays/speckit/chained-sdd.yml"));
+    assert.equal(action.overlayAdd, true);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("overlay add failure copies the file, and an enabled overlay only overwrites content", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-overlay-copy-"));
+  try {
+    mkdirSync(join(tmp, ".specify"), { recursive: true });
+    const overlay = join(tmp, ".specify", "workflows", "overlays", "speckit", "chained-sdd.yml");
+    const calls = [];
+    const failAdd = (args) => {
+      calls.push(args.slice(0, 3).join(" "));
+      if (args[2] === "list") return { status: 0, stdout: "No overlays found\n", stderr: "" };
+      return { status: 1, stdout: "", stderr: "add failed" };
+    };
+    syncLayer2(tmp, { dryRun: false, runSpecify: failAdd });
+    assert.ok(calls.includes("workflow overlay add"));
+    const src = readFileSync(join(ROOT, "presets", "chained-sdd", "workflows", "chained-sdd.yml"), "utf8");
+    assert.equal(readFileSync(overlay, "utf8").replace(/\r\n/g, "\n"), src.replace(/\r\n/g, "\n"));
+
+    writeFileSync(overlay, "old-but-listed\n");
+    const listed = [];
+    const already = (args) => {
+      listed.push(args[2]);
+      return specifyListsEnabled();
+    };
+    syncLayer2(tmp, { dryRun: false, runSpecify: already });
+    assert.equal(listed.includes("add"), false);
+    assert.equal(readFileSync(overlay, "utf8").replace(/\r\n/g, "\n"), src.replace(/\r\n/g, "\n"));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("upgrade dry-run does not write and skips an AGENTS.md pipeline section with no end marker", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-upgrade-dry-"));
+  try {
+    const paths = writeUpgradeFixture(tmp);
+    const before = snapshot(paths);
+    const result = syncLayer2(tmp, { dryRun: true });
+    assert.equal(result.dryRun, true);
+    assert.equal(result.scriptType, "sh");
+    assert.deepEqual(snapshot(paths), before);
+
+    const overlay = result.actions.find((a) => a.path.endsWith("chained-sdd.yml") && a.path.includes("overlays"));
+    assert.equal(overlay.status, "update");
+    const agents = result.actions.find((a) => a.path === ".agents/AGENTS.md");
+    assert.equal(agents.status, "skip");
+    assert.equal(agents.note, "pipeline section has no end marker");
+    const changelog = result.actions.find((a) => a.path === ".agents/rules/changelog.md");
+    assert.equal(changelog.status, "skip");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("upgrade --apply writes only the allowlist and keeps filled constitution and changelog", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-upgrade-apply-"));
+  try {
+    const paths = writeUpgradeFixture(tmp);
+    const rawSkill = readFileSync(join(ROOT, "presets", "chained-sdd", "skills", "speckit-clarify", "SKILL.md"), "utf8");
+    writeFileSync(paths.skill, rawSkill);
+    const constitutionBefore = readFileSync(paths.constitution, "utf8");
+    const changelogBefore = readFileSync(paths.changelog, "utf8");
+    const agentsBefore = readFileSync(paths.agents, "utf8");
+    const workflowBefore = readFileSync(paths.workflow, "utf8");
+    const extraBefore = readFileSync(paths.extra, "utf8");
+    const gitignoreBefore = readFileSync(paths.gitignore, "utf8");
+    const pkgBefore = readFileSync(paths.pkg, "utf8");
+
+    const result = syncLayer2(tmp, { dryRun: false, runSpecify: specifyListsEnabled });
+    assert.equal(result.dryRun, false);
+
+    const overlaySrc = readFileSync(join(ROOT, "presets", "chained-sdd", "workflows", "chained-sdd.yml"), "utf8");
+    assert.equal(readFileSync(paths.overlay, "utf8").replace(/\r\n/g, "\n"), overlaySrc.replace(/\r\n/g, "\n"));
+    const writtenSkill = readFileSync(paths.skill, "utf8");
+    assert.ok(writtenSkill.includes(".specify/scripts/bash/check-prerequisites.sh"));
+    assert.equal(writtenSkill.includes(".specify/scripts/powershell/check-prerequisites.ps1"), false);
+    assert.equal(writtenSkill, adaptSkillScript(rawSkill.replace(/\r\n/g, "\n"), "sh"));
+
+    assert.equal(readFileSync(paths.constitution, "utf8"), constitutionBefore);
+    assert.equal(readFileSync(paths.changelog, "utf8"), changelogBefore);
+    assert.equal(readFileSync(paths.agents, "utf8"), agentsBefore);
+    assert.equal(readFileSync(paths.workflow, "utf8"), workflowBefore);
+    assert.equal(readFileSync(paths.extra, "utf8"), extraBefore);
+    assert.equal(readFileSync(paths.gitignore, "utf8"), gitignoreBefore);
+    assert.equal(readFileSync(paths.pkg, "utf8"), pkgBefore);
+    assert.equal(existsSync(join(tmp, ".specify", "presets", "chained-sdd", "preset.yml")), true);
+
+    const agents = result.actions.find((a) => a.path === ".agents/AGENTS.md");
+    assert.equal(agents.status, "skip");
+    assert.match(agents.note, /pipeline section has no end marker/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("upgrade replaces only the paired AGENTS.md pipeline section", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-upgrade-agents-"));
+  try {
+    mkdirSync(join(tmp, ".specify", "scripts", "powershell"), { recursive: true });
+    const agents = join(tmp, ".agents", "AGENTS.md");
+    mkdirSync(join(tmp, ".agents"), { recursive: true });
+    const outside = "# Product heading\n\nKeep this product paragraph.\n\n";
+    writeFileSync(
+      agents,
+      `${outside}<!-- speckit-launch:pipeline -->\n\nold rules\n\n<!-- /speckit-launch:pipeline -->\n\n## After\n\nStill here.\n`,
+    );
+    const result = syncLayer2(tmp, { dryRun: false, runSpecify: specifyListsEnabled });
+    const text = readFileSync(agents, "utf8");
+    assert.ok(text.startsWith(outside));
+    assert.ok(text.includes("## After\n\nStill here.\n"));
+    assert.ok(text.includes("<!-- speckit-launch:pipeline -->"));
+    assert.ok(text.includes("<!-- /speckit-launch:pipeline -->"));
+    assert.ok(text.includes("specify → clarify → plan"));
+    assert.equal(text.includes("old rules"), false);
+    const action = result.actions.find((a) => a.path === ".agents/AGENTS.md");
+    assert.equal(action.status, "update");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("speckit-launch upgrade CLI dry-run writes nothing and rejects a non-Spec Kit directory", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-upgrade-cli-"));
+  try {
+    const paths = writeUpgradeFixture(tmp);
+    const before = readFileSync(paths.overlay, "utf8");
+    const dry = spawnSync(process.execPath, [join(ROOT, "bin", "new-project.mjs"), "upgrade", "--dir", tmp, "--dry-run"], {
+      encoding: "utf8",
+    });
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.ok(dry.stdout.includes("dry-run"));
+    assert.ok(dry.stdout.includes("update"));
+    assert.ok(dry.stdout.includes("pipeline section has no end marker"));
+    assert.equal(readFileSync(paths.overlay, "utf8"), before);
+
+    const empty = mkdtempSync(join(tmpdir(), "speckit-upgrade-empty-"));
+    const missing = spawnSync(process.execPath, [join(ROOT, "bin", "new-project.mjs"), "upgrade", "--dir", empty], {
+      encoding: "utf8",
+    });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /not a Spec Kit project/);
+    rmSync(empty, { recursive: true, force: true });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("upgrade refuses a Spec Kit older than 1.0 and writes nothing", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-upgrade-old-"));
+  try {
+    const paths = writeUpgradeFixture(tmp);
+    writeFileSync(
+      join(tmp, ".specify", "init-options.json"),
+      JSON.stringify({ speckit_version: "0.9.5" }),
+    );
+    const before = readFileSync(paths.overlay, "utf8");
+    const refused = spawnSync(
+      process.execPath,
+      [join(ROOT, "bin", "new-project.mjs"), "upgrade", "--apply", "--dir", tmp],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /0\.9\.5/);
+    assert.match(refused.stderr, /older than 1\.0\.0/);
+    assert.equal(readFileSync(paths.overlay, "utf8"), before);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

@@ -5,6 +5,7 @@
 This repo uses [GitHub Spec Kit](https://github.com/github/spec-kit) for Spec-Driven Development.
 
 <!-- speckit-launch:pipeline -->
+<!-- /speckit-launch:pipeline -->
 
 ### One-time project setup
 

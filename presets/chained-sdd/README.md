@@ -21,11 +21,13 @@ Installed automatically by `speckit-launch`.
 
 ### Standalone Installation (into existing Spec Kit projects)
 
-To install or update the Chained SDD methodology (workflow overlay, enhanced skills, rules, and constitution principle) into an existing Spec Kit project, run:
+To install Chained SDD into an existing Spec Kit project for the first time, run:
 
 ```bash
 node /path/to/speckit-launch/presets/chained-sdd/install.mjs [targetDir]
 ```
+
+This is a first install, not an upgrade. To refresh launcher-owned files later, use `npx speckit-launch upgrade` (default dry-run; `--apply` writes).
 
 Or via the Spec Kit CLI manually:
 

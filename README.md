@@ -30,8 +30,12 @@ Line endings are **LF** in this repo and in generated projects (`.gitattributes`
 
 | | Version |
 |--|---------|
-| **Requires** | Spec Kit **1.0+** (`specify workflow overlay`, overlay path `.specify/workflows/overlays/`) |
+| **Supported** | Spec Kit **>=1.0.0 <2.0.0** (`specify workflow overlay`, overlay path `.specify/workflows/overlays/`) |
 | **Last smoke-tested** | **1.0.4** (2026-09-08) |
+| **Newer 1.x** | warning, then continue |
+| **<1.0.0 or >=2.0.0** | init and upgrade refuse |
+
+Init checks `specify --version`. Upgrade checks that and `.specify/init-options.json` `speckit_version` (the version that wrote the project). A missing `specify` on PATH does not block upgrade — the command does not call it — but a too-old or untested-major project version does. Dev suffixes compare as the numeric triple (`1.0.6.dev0` is 1.0.6).
 
 The chained-SDD overlay is written against the bundled `speckit` workflow step ids (`specify`, `review-spec`, `plan`, `review-plan`, `tasks`, `implement`). A newer CLI that renames those ids needs an overlay edit — see [After upgrading the `specify` CLI](#after-upgrading-the-specify-cli).
 
@@ -142,7 +146,7 @@ Overlays written into the new project:
 
 - `.agents/AGENTS.md` — canonical pipeline + autonomy rules + remediation / ADR converge workflow
 - `.cursor/rules/speckit-pipeline.mdc` — Cursor `alwaysApply` copy of the pause rules
-- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: inserts clarify / analyze / converge, with non-destructive retry gates. Official `workflow.yml` stays upgradable.
+- `.specify/workflows/overlays/speckit/chained-sdd.yml` — Spec Kit 1.0 overlay: inserts clarify / analyze / converge, with non-destructive retry gates. If `specify workflow overlay list speckit` does not already show chained-sdd enabled, `--apply` runs `specify workflow overlay add <src> --priority 10` first (dry-run does not). Failure copies the file. Official `workflow.yml` stays upgradable.
 - `chained-sdd` preset — appends the **Autonomy & Spec Kit pipeline** principle onto `constitution-template` (local `--dev` install; not a catalog release). Unfilled `constitution.md` is seeded the same way.
 
 ### Model & capability tier routing
@@ -183,14 +187,36 @@ This repo is a **launcher**, not a Spec Kit project. There is no `.specify/` her
 
 New projects pick up the new CLI automatically the next time you run `node bin/new-project.mjs`. To keep the launcher itself compatible:
 
-1. Confirm the CLI: `specify version` (last smoke-tested: **1.0.4**; requires **1.0+**)
+1. Confirm the CLI: `specify --version` (supported **>=1.0.0 <2.0.0**; last smoke-tested: **1.0.4**). After retesting a newer release, raise `SPECKIT_VERSION_SUPPORT` in `bin/new-project.mjs` so the warning or refusal matches what you verified.
 2. Skim `specify init --help` and `specify integration install --help` if a major release changed flags
 3. Check that the bundled `speckit` workflow still has these step ids (overlay anchors): `specify`, `review-spec`, `plan`, `review-plan`, `tasks`, `implement`
 4. Smoke-test: `node bin/new-project.mjs --only grok --no-git smoke-app --dir %TEMP%` (or `$TMPDIR`)
 5. In the smoke project, confirm `.specify/workflows/overlays/speckit/chained-sdd.yml` exists and `specify workflow resolve speckit` shows clarify / analyze / converge without the review gates
 6. Commit launcher/overlay changes if anything in steps 2–5 required an edit
 
-Already-created apps are upgraded **in that repo**:
+Already-created apps are upgraded **in that repo**. Do not re-run `new-project.mjs --here` as an upgrade path — that runs `specify init --here --force`.
+
+Refresh launcher-owned layer 2 files with:
+
+```bash
+npx speckit-launch upgrade                 # plan only; writes nothing
+npx speckit-launch upgrade --apply         # write the allowlist
+npx speckit-launch upgrade --dir <path>    # target project (default: cwd)
+```
+
+`--dry-run` is the explicit form of the default. The command fails if the target has no `.specify/` (not a Spec Kit project), if Spec Kit is older than 1.0.0, or if it is 2.0.0 or newer. A newer 1.x than 1.0.4 warns and continues. Each planned file is printed as `same`, `update`, `skip`, or `add`. A dry-run `update` means the file would be written.
+
+`--apply` updates only:
+
+- `.specify/workflows/overlays/speckit/chained-sdd.yml` (if `specify workflow overlay list speckit` already shows chained-sdd enabled, this only overwrites the file; otherwise `--apply` runs `specify workflow overlay add` first — dry-run does not)
+- `.agents/skills/speckit-clarify`, `speckit-analyze`, `speckit-implement`, `speckit-converge` `SKILL.md` (script type from `.specify/init-options.json` `script`, else `.specify/scripts`; bash and powershell together do not default to bash)
+- `.cursor/rules/speckit-pipeline.mdc`
+- `scripts/link-agent-skills.mjs` and `scripts/new-worktree.mjs`
+- known files under `.specify/presets/chained-sdd/` (extra files in that directory are kept; this does not rely on `specify preset add`, which skips when the preset is already installed)
+
+It does not run `specify init` or `specify integration install --force`, and it does not rewrite `workflow.yml`, `.specify/templates/`, `.specify/scripts/`, a filled `constitution.md`, `.gitignore`, `.gitattributes`, or `package.json`. Optional starters (`changelog`, `commit-checks`, `shell-encoding`, `commit-push-pr`, hooks, `safety-check`) are copied only when missing. `.agents/AGENTS.md` is updated only between paired `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` markers. A start marker with no end marker is skipped (`pipeline section has no end marker`).
+
+Specify CLI upgrades in that app are still separate:
 
 ```bash
 specify integration upgrade          # once per installed integration key
@@ -198,8 +224,6 @@ specify extension update
 specify extension add git            # if this project was created before the git extension was installed
 node scripts/link-agent-skills.mjs   # if that project uses skill mounts
 ```
-
-Do not re-run `new-project.mjs --here` as an upgrade path.
 
 ## After clone
 

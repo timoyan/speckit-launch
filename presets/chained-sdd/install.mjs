@@ -1,35 +1,24 @@
 #!/usr/bin/env node
 
 /**
- * Standalone installer for the Chained SDD preset.
- * Installs or updates Chained SDD methodology in an existing Spec Kit project:
- * - Deploys the workflow overlay (.specify/workflows/overlays/speckit/chained-sdd.yml)
- * - Copies enhanced workflow skills to .agents/skills/ (with script type adaptation)
- * - Injects chained SDD rules into .agents/AGENTS.md
- * - Writes .cursor/rules/speckit-pipeline.mdc
- * - Writes shared process rules to .agents/rules/ and Cursor alwaysApply mirrors
+ * Standalone first install for the Chained SDD preset.
+ * Not an upgrade entry — refresh launcher-owned files with `speckit-launch upgrade`.
+ * - Ensures .agents/AGENTS.md uses paired pipeline markers when creating it
+ * - Syncs the shared layer-2 allowlist (overlay, enhanced skills, cursor rule, scripts, preset snapshot)
  * - Registers the preset (specify preset add --dev)
- * - Seeds the pipeline principle into .specify/memory/constitution.md
- * - Refreshes agent skill symlinks/junctions
+ * - Does not rewrite a filled constitution
  *
  * Usage:
  *   node presets/chained-sdd/install.mjs [targetDir]
  */
 
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeProcessRules } from "../../bin/new-project.mjs";
+import { writeAgentsFiles, syncLayer2, enforceSpeckitVersion } from "../../bin/new-project.mjs";
 
 const PRESET_ROOT = dirname(fileURLToPath(import.meta.url));
-const STARTER_ROOT = join(PRESET_ROOT, "..", "..");
 const IS_WINDOWS = process.platform === "win32";
 
 function readText(p) {
@@ -38,47 +27,6 @@ function readText(p) {
 
 function writeText(p, s) {
   writeFileSync(p, s, "utf8");
-}
-
-function copyTextFile(src, dest) {
-  writeText(dest, readText(src));
-}
-
-function detectScriptType(projectRoot) {
-  if (existsSync(join(projectRoot, ".specify", "scripts", "bash"))) return "sh";
-  if (existsSync(join(projectRoot, ".specify", "scripts", "powershell")))
-    return "ps";
-  if (existsSync(join(projectRoot, ".specify", "scripts", "python")))
-    return "py";
-  return IS_WINDOWS ? "ps" : "sh";
-}
-
-function adaptSkillScript(content, scriptType = "ps") {
-  if (scriptType === "sh") {
-    return content
-      .replace(
-        /\.specify\/scripts\/powershell\/check-prerequisites\.ps1/g,
-        ".specify/scripts/bash/check-prerequisites.sh",
-      )
-      .replace(/ -Json\b/g, " --json")
-      .replace(/ -PathsOnly\b/g, " --paths-only")
-      .replace(/ -RequireSpec\b/g, " --require-spec")
-      .replace(/ -RequireTasks\b/g, " --require-tasks")
-      .replace(/ -IncludeTasks\b/g, " --include-tasks");
-  }
-  if (scriptType === "py") {
-    return content
-      .replace(
-        /\.specify\/scripts\/powershell\/check-prerequisites\.ps1/g,
-        "python .specify/scripts/python/check_prerequisites.py",
-      )
-      .replace(/ -Json\b/g, " --json")
-      .replace(/ -PathsOnly\b/g, " --paths-only")
-      .replace(/ -RequireSpec\b/g, " --require-spec")
-      .replace(/ -RequireTasks\b/g, " --require-tasks")
-      .replace(/ -IncludeTasks\b/g, " --include-tasks");
-  }
-  return content;
 }
 
 function runCmd(cmd, args, cwd) {
@@ -103,91 +51,11 @@ function installPreset(targetDir) {
     process.exit(1);
   }
 
-  const scriptType = detectScriptType(projectRoot);
-  console.log(`Detected script type: ${scriptType}`);
+  console.log(`Detected script type follows .specify/init-options.json, then .specify/scripts`);
 
-  // 1. Workflow overlay
-  const overlaySrc = join(PRESET_ROOT, "workflows", "chained-sdd.yml");
-  const overlayDestDir = join(
-    projectRoot,
-    ".specify",
-    "workflows",
-    "overlays",
-    "speckit",
-  );
-  mkdirSync(overlayDestDir, { recursive: true });
-  copyTextFile(overlaySrc, join(overlayDestDir, "chained-sdd.yml"));
-  console.log("✓ Deployed .specify/workflows/overlays/speckit/chained-sdd.yml");
-
-  // 2. Enhanced skills
-  const skillsSrcDir = join(PRESET_ROOT, "skills");
-  const skillsDestDir = join(projectRoot, ".agents", "skills");
-  mkdirSync(skillsDestDir, { recursive: true });
-  if (existsSync(skillsSrcDir)) {
-    const skillDirs = readdirSync(skillsSrcDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-    for (const name of skillDirs) {
-      const srcSkill = join(skillsSrcDir, name, "SKILL.md");
-      if (!existsSync(srcSkill)) continue;
-      const targetDir = join(skillsDestDir, name);
-      mkdirSync(targetDir, { recursive: true });
-      const content = readText(srcSkill);
-      writeText(
-        join(targetDir, "SKILL.md"),
-        adaptSkillScript(content, scriptType),
-      );
-      console.log(
-        `✓ Installed skill .agents/skills/${name}/SKILL.md (${scriptType})`,
-      );
-    }
-  }
-
-  // 3. Pipeline rules -> .agents/AGENTS.md
-  const rulesPath = join(PRESET_ROOT, "rules", "pipeline-rules.md");
-  if (existsSync(rulesPath)) {
-    const pipelineRules = readText(rulesPath).trim();
-    const agentsMd = join(projectRoot, ".agents", "AGENTS.md");
-    const marker = "<!-- speckit-launch:pipeline -->";
-    const needle = "specify → clarify → plan → tasks → analyze";
-
-    if (!existsSync(agentsMd)) {
-      const templatePath = join(STARTER_ROOT, "templates", "AGENTS.md");
-      const baseTemplate = existsSync(templatePath)
-        ? readText(templatePath)
-        : `# Agent notes\n\n## Spec Kit\n\n${marker}\n`;
-      writeText(
-        agentsMd,
-        baseTemplate.replace(marker, `${marker}\n\n${pipelineRules}`),
-      );
-      console.log("✓ Wrote .agents/AGENTS.md");
-    } else {
-      const existing = readText(agentsMd);
-      if (!existing.includes(marker) && !existing.includes(needle)) {
-        writeText(
-          agentsMd,
-          existing.trimEnd() + `\n\n${marker}\n\n${pipelineRules}\n`,
-        );
-        console.log(
-          "✓ Merged Chained SDD pipeline rules into .agents/AGENTS.md",
-        );
-      } else {
-        console.log("✓ .agents/AGENTS.md already contains pipeline rules");
-      }
-    }
-  }
-
-  // 4. Cursor rule -> .cursor/rules/speckit-pipeline.mdc
-  const cursorRulesDir = join(projectRoot, ".cursor", "rules");
-  mkdirSync(cursorRulesDir, { recursive: true });
-  const cursorRuleDest = join(cursorRulesDir, "speckit-pipeline.mdc");
-  const cursorRuleSrc = join(PRESET_ROOT, "rules", "speckit-pipeline.mdc");
-  if (existsSync(cursorRuleSrc)) {
-    copyTextFile(cursorRuleSrc, cursorRuleDest);
-    console.log("✓ Wrote .cursor/rules/speckit-pipeline.mdc");
-  }
-  writeProcessRules(projectRoot);
-  console.log("✓ Wrote .agents/rules/ (Cursor alwaysApply mirrors only if missing)");
+  enforceSpeckitVersion({ projectRoot });
+  writeAgentsFiles(projectRoot);
+  syncLayer2(projectRoot, { dryRun: false });
 
   // 4b. Multi-agent docs pointer (.cursorrules, CLAUDE.md, .github/copilot-instructions.md)
   const agentDocCandidates = [
@@ -225,12 +93,9 @@ function installPreset(targetDir) {
     );
   }
 
-  // 6. Link agent skills
-  const linkScriptSrc = join(STARTER_ROOT, "scripts", "link-agent-skills.mjs");
+  // Refresh mounts from the script syncLayer2 just wrote (do not treat this file as an upgrade CLI).
   const linkScriptDest = join(projectRoot, "scripts", "link-agent-skills.mjs");
-  if (existsSync(linkScriptSrc)) {
-    mkdirSync(join(projectRoot, "scripts"), { recursive: true });
-    copyTextFile(linkScriptSrc, linkScriptDest);
+  if (existsSync(linkScriptDest)) {
     runCmd(process.execPath, [linkScriptDest], projectRoot);
     console.log("✓ Refreshed cross-agent skill mounts");
   }
