@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * Standalone installer for the Chained SDD preset.
  * Installs or updates Chained SDD methodology in an existing Spec Kit project:
@@ -14,6 +15,7 @@
  *   node presets/chained-sdd/install.mjs [targetDir]
  */
 
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -23,7 +25,6 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 
 const PRESET_ROOT = dirname(fileURLToPath(import.meta.url));
 const STARTER_ROOT = join(PRESET_ROOT, "..", "..");
@@ -43,8 +44,10 @@ function copyTextFile(src, dest) {
 
 function detectScriptType(projectRoot) {
   if (existsSync(join(projectRoot, ".specify", "scripts", "bash"))) return "sh";
-  if (existsSync(join(projectRoot, ".specify", "scripts", "powershell"))) return "ps";
-  if (existsSync(join(projectRoot, ".specify", "scripts", "python"))) return "py";
+  if (existsSync(join(projectRoot, ".specify", "scripts", "powershell")))
+    return "ps";
+  if (existsSync(join(projectRoot, ".specify", "scripts", "python")))
+    return "py";
   return IS_WINDOWS ? "ps" : "sh";
 }
 
@@ -89,8 +92,12 @@ function installPreset(targetDir) {
   console.log(`Installing Chained SDD preset into: ${projectRoot}`);
 
   if (!existsSync(join(projectRoot, ".specify"))) {
-    console.error(`Error: ${projectRoot} is not a Spec Kit project (missing .specify/ directory).`);
-    console.error("Initialize Spec Kit first with \`specify init\` or use \`speckit-launch\`.");
+    console.error(
+      `Error: ${projectRoot} is not a Spec Kit project (missing .specify/ directory).`,
+    );
+    console.error(
+      "Initialize Spec Kit first with `specify init` or use `speckit-launch`.",
+    );
     process.exit(1);
   }
 
@@ -99,7 +106,13 @@ function installPreset(targetDir) {
 
   // 1. Workflow overlay
   const overlaySrc = join(PRESET_ROOT, "workflows", "chained-sdd.yml");
-  const overlayDestDir = join(projectRoot, ".specify", "workflows", "overlays", "speckit");
+  const overlayDestDir = join(
+    projectRoot,
+    ".specify",
+    "workflows",
+    "overlays",
+    "speckit",
+  );
   mkdirSync(overlayDestDir, { recursive: true });
   copyTextFile(overlaySrc, join(overlayDestDir, "chained-sdd.yml"));
   console.log("✓ Deployed .specify/workflows/overlays/speckit/chained-sdd.yml");
@@ -118,8 +131,13 @@ function installPreset(targetDir) {
       const targetDir = join(skillsDestDir, name);
       mkdirSync(targetDir, { recursive: true });
       const content = readText(srcSkill);
-      writeText(join(targetDir, "SKILL.md"), adaptSkillScript(content, scriptType));
-      console.log(`✓ Installed skill .agents/skills/${name}/SKILL.md (${scriptType})`);
+      writeText(
+        join(targetDir, "SKILL.md"),
+        adaptSkillScript(content, scriptType),
+      );
+      console.log(
+        `✓ Installed skill .agents/skills/${name}/SKILL.md (${scriptType})`,
+      );
     }
   }
 
@@ -136,13 +154,21 @@ function installPreset(targetDir) {
       const baseTemplate = existsSync(templatePath)
         ? readText(templatePath)
         : `# Agent notes\n\n## Spec Kit\n\n${marker}\n`;
-      writeText(agentsMd, baseTemplate.replace(marker, `${marker}\n\n${pipelineRules}`));
+      writeText(
+        agentsMd,
+        baseTemplate.replace(marker, `${marker}\n\n${pipelineRules}`),
+      );
       console.log("✓ Wrote .agents/AGENTS.md");
     } else {
       const existing = readText(agentsMd);
       if (!existing.includes(marker) && !existing.includes(needle)) {
-        writeText(agentsMd, existing.trimEnd() + `\n\n${marker}\n\n${pipelineRules}\n`);
-        console.log("✓ Merged Chained SDD pipeline rules into .agents/AGENTS.md");
+        writeText(
+          agentsMd,
+          existing.trimEnd() + `\n\n${marker}\n\n${pipelineRules}\n`,
+        );
+        console.log(
+          "✓ Merged Chained SDD pipeline rules into .agents/AGENTS.md",
+        );
       } else {
         console.log("✓ .agents/AGENTS.md already contains pipeline rules");
       }
@@ -160,13 +186,21 @@ function installPreset(targetDir) {
   }
 
   // 4b. Multi-agent docs pointer (.cursorrules, CLAUDE.md, .github/copilot-instructions.md)
-  const agentDocCandidates = [".cursorrules", "CLAUDE.md", ".github/copilot-instructions.md"];
-  const pointerBlock = `\n\n## Spec Kit chained pipeline\n\nCanonical rules: \`.agents/AGENTS.md\`.\n\n\`\`\`\nspecify → clarify → plan → tasks → analyze → implement → converge\n\`\`\`\n\nPause after clarify/analyze only when issues remain.\n`;
+  const agentDocCandidates = [
+    ".cursorrules",
+    "CLAUDE.md",
+    ".github/copilot-instructions.md",
+  ];
+  const pointerBlock =
+    "\n\n## Spec Kit chained pipeline\n\nCanonical rules: `.agents/AGENTS.md`.\n\n```\nspecify → clarify → plan → tasks → analyze → implement → converge\n```\n\nPause after clarify/analyze only when issues remain.\n";
   for (const doc of agentDocCandidates) {
     const docPath = join(projectRoot, ...doc.split("/"));
     if (existsSync(docPath)) {
       const content = readText(docPath);
-      if (!content.includes(".agents/AGENTS.md") && !content.includes("Spec Kit chained pipeline")) {
+      if (
+        !content.includes(".agents/AGENTS.md") &&
+        !content.includes("Spec Kit chained pipeline")
+      ) {
         writeText(docPath, content.trimEnd() + pointerBlock);
         console.log(`✓ Merged Spec Kit pipeline pointer into ${doc}`);
       }
@@ -174,11 +208,17 @@ function installPreset(targetDir) {
   }
 
   // 5. Specify preset registration
-  const r = runCmd("specify", ["preset", "add", "--dev", PRESET_ROOT], projectRoot);
+  const r = runCmd(
+    "specify",
+    ["preset", "add", "--dev", PRESET_ROOT],
+    projectRoot,
+  );
   if (r.status === 0) {
     console.log("✓ Registered chained-sdd preset in Spec Kit");
   } else {
-    console.log("• specify preset add skipped (or specify CLI not found on PATH)");
+    console.log(
+      "• specify preset add skipped (or specify CLI not found on PATH)",
+    );
   }
 
   // 6. Link agent skills

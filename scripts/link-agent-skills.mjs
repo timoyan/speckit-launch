@@ -73,9 +73,16 @@ function isMountOrMissing(path) {
       /* continue */
     }
     if (readdirSync(path).length === 0) return "empty-dir";
-    throw new Error(`${path} exists as a real directory with files. Move or remove it first.`);
+    throw new Error(
+      `${path} exists as a real directory with files. Move or remove it first.`,
+    );
   } catch (err) {
-    if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      err.code === "ENOENT"
+    ) {
       return "missing";
     }
     throw err;

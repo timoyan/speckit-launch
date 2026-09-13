@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 /**
  * Create a new Git Worktree with automatic skill mount linking.
  * Allows multiple AI agents to run Spec Kit pipelines concurrently
@@ -15,7 +16,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 
 const root = resolve(join(dirname(fileURLToPath(import.meta.url)), ".."));
 
@@ -41,10 +41,14 @@ function isGitRepo() {
 }
 
 function branchExists(branch) {
-  const res = spawnSync("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], {
-    cwd: root,
-    stdio: "ignore",
-  });
+  const res = spawnSync(
+    "git",
+    ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`],
+    {
+      cwd: root,
+      stdio: "ignore",
+    },
+  );
   return res.status === 0;
 }
 
@@ -67,7 +71,9 @@ Examples:
 }
 
 if (!isGitRepo()) {
-  die("Not inside a Git repository. Please initialize Git first with 'git init'.");
+  die(
+    "Not inside a Git repository. Please initialize Git first with 'git init'.",
+  );
 }
 
 const branch = args[0];
@@ -93,7 +99,7 @@ run("git", gitArgs);
 // Link agent skills in the new worktree
 const linkScriptPath = join(targetDir, "scripts", "link-agent-skills.mjs");
 if (existsSync(linkScriptPath)) {
-  console.log(`Linking agent skills in new worktree...`);
+  console.log("Linking agent skills in new worktree...");
   run(process.execPath, [linkScriptPath], targetDir);
 }
 
