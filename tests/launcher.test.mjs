@@ -13,6 +13,7 @@ import {
   adaptSkillScript,
   selectPrimaryIntegration,
   integrationsToInstall,
+  buildSpecifyInitArgs,
   ensureAgentBridgeFiles,
 } from "../bin/new-project.mjs";
 
@@ -62,6 +63,17 @@ test("selectPrimaryIntegration prioritizes explicit flag over detection", async 
   const dummyDetected = new Map([["claude", "Claude Code"]]);
   const primary = await selectPrimaryIntegration(ROOT, { primary: "agy", nonInteractive: true }, dummyDetected);
   assert.equal(primary, "agy");
+});
+
+test("buildSpecifyInitArgs installs the git extension unless --no-git", () => {
+  const withGit = buildSpecifyInitArgs("grok", "ps");
+  assert.deepEqual(withGit.slice(-2), ["--extension", "git"]);
+  assert.ok(withGit.includes("--integration"));
+  assert.equal(withGit[withGit.indexOf("--integration") + 1], "grok");
+
+  const noGit = buildSpecifyInitArgs("claude", "sh", { noGit: true });
+  assert.equal(noGit.includes("--extension"), false);
+  assert.equal(noGit.includes("git"), false);
 });
 
 test("integrationsToInstall positions primary integration first", () => {

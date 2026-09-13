@@ -88,7 +88,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 | `--only <agent>` | 只裝這一個 Spec Kit 整合（略過主流組合） |
 | `--non-interactive` | 跳過終端互動選單，使用自動探測之預設 Agent |
 | `--script sh\|ps\|py` | helper script 類型（預設：Windows 為 `ps`，其他為 `sh`） |
-| `--no-git` | 略過 `git init` |
+| `--no-git` | 略過 `git init`，也不裝 Spec Kit git extension（不會先切 feature branch） |
 | `--version`, `-v` | 顯示版本號 |
 | `--help` | 顯示用法 |
 
@@ -98,8 +98,8 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 ## 它做了什麼
 
 1. 確認 `specify` 可用（必要時 `uv tool install specify-cli`）
-2. `git init`（可選）
-3. 對第一個整合跑 `specify init`，其餘主流組合（含 `agy`）用 `specify integration install --force`（若有 `--only` 則只裝那一個）
+2. `git init`（可選；`--no-git` 時略過）
+3. 對第一個整合跑 `specify init`（除非 `--no-git`，否則加 `--extension git`），其餘主流組合（含 `agy`）用 `specify integration install --force`（若有 `--only` 則只裝那一個）。git extension 會註冊 `hooks.before_specify` → `speckit.git.feature`，所以 `/speckit-specify` 會先建立並切換 feature branch，再寫規格。Spec Kit 1.0+ 沒裝這個 extension 就不會切 branch。
 4. 把 `speckit-*` skills 去重收進 `.agents/skills` 並注入實戰增強能力：
    - **澄清問題即時落地**：候選問題與預設建議即時寫入 `spec.md` 附帶可互動核取方塊。
    - **結構化 `analysis.md` 稽核報告**：產出問題清單與用戶可編輯的修復清單（`- [x] R...`）。
@@ -194,6 +194,7 @@ Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解�
 ```bash
 specify integration upgrade          # 每個已安裝的 integration key 跑一次
 specify extension update
+specify extension add git            # 若專案是在啟動器改為安裝 git extension 之前建立的
 node scripts/link-agent-skills.mjs   # 若該專案有用 skill mount
 ```
 

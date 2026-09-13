@@ -88,7 +88,7 @@ npm run unlink        # equivalent to npm unlink -g speckit-launch
 | `--only <agent>` | Install only this Spec Kit integration (skip the mainstream set) |
 | `--non-interactive` | Skip interactive prompt and use auto-detected defaults |
 | `--script sh\|ps\|py` | Helper script type (default: `ps` on Windows, `sh` elsewhere) |
-| `--no-git` | Skip `git init` |
+| `--no-git` | Skip `git init` and the Spec Kit git extension (no feature-branch hook) |
 | `--version`, `-v` | Print version |
 | `--help` | Show usage |
 
@@ -98,8 +98,8 @@ Named projects are created under the **current working directory** unless `--dir
 ## What it does
 
 1. Ensures `specify` is available (`uv tool install specify-cli` if needed)
-2. `git init` (optional)
-3. `specify init` for the first integration, then `specify integration install --force` for the rest of the mainstream set (including `agy`) (or only `--only` if set)
+2. `git init` (optional; skipped with `--no-git`)
+3. `specify init` for the first integration (with `--extension git` unless `--no-git`), then `specify integration install --force` for the rest of the mainstream set (including `agy`) (or only `--only` if set). The git extension registers `hooks.before_specify` → `speckit.git.feature`, so `/speckit-specify` creates and checks out a feature branch before writing the spec. Spec Kit 1.0+ does not do that unless the extension is installed.
 4. Dedupes `speckit-*` skills into `.agents/skills` and applies production-tested enhancements:
    - **Immediate Clarify Persistence**: Candidate questions and default recommendations written directly into `spec.md` with interactive checkboxes.
    - **Actionable `analysis.md` Audit Report**: Structured findings table and user-editable remediation checklist (`- [x] R...`).
@@ -194,6 +194,7 @@ Already-created apps are upgraded **in that repo**:
 ```bash
 specify integration upgrade          # once per installed integration key
 specify extension update
+specify extension add git            # if this project was created before the git extension was installed
 node scripts/link-agent-skills.mjs   # if that project uses skill mounts
 ```
 

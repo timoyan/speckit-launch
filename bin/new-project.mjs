@@ -15,7 +15,7 @@
  *   --dir <path>        Parent directory for <name>, or target when --here
  *   --only <integration> Install only this Spec Kit integration (skip multi-agent)
  *   --script sh|ps|py   Script type (default: ps on Windows, sh elsewhere)
- *   --no-git            Skip git init
+ *   --no-git            Skip git init and the Spec Kit git extension
  *   --help              Show help
  */
 import { spawnSync } from "node:child_process";
@@ -114,6 +114,7 @@ Default --script: ${defaultScript()} (win32=ps, else sh)
 --primary <integration>: set primary/default AI agent (e.g. agy, claude, cursor-agent)
 --only <integration>: install a single Spec Kit integration instead of all mainstream
 --non-interactive: skip interactive prompts and use auto-detected defaults
+--no-git: skip git init and the Spec Kit git extension (no feature-branch hook)
 --version, -v: print version
 --help, -h: show usage`);
 }
@@ -326,7 +327,50 @@ function integrationsToInstall(opts, primaryIntegration) {
   return list;
 }
 
-function installIntegrations(projectRoot, keys, script, primaryIntegration) {
+function buildSpecifyInitArgs(integration, script, { noGit = false } = {}) {
+  const args = [
+    "init",
+    "--here",
+    "--force",
+    "--integration",
+    integration,
+    "--script",
+    script,
+    "--non-interactive",
+    "--ignore-agent-tools",
+  ];
+  // Spec Kit 1.0+ does not create a feature branch unless the git extension
+  // registers hooks.before_specify → speckit.git.feature. --no-git skips it.
+  if (!noGit) {
+    args.push("--extension", "git");
+  }
+  return args;
+}
+
+function gitExtensionInstalled(projectRoot) {
+  const extYml = join(projectRoot, ".specify", "extensions.yml");
+  if (!existsSync(extYml)) return false;
+  return readText(extYml).includes("speckit.git.feature");
+}
+
+function ensureGitExtension(projectRoot, noGit) {
+  if (noGit) {
+    console.log("skipped Spec Kit git extension (--no-git)");
+    return;
+  }
+  if (gitExtensionInstalled(projectRoot)) {
+    console.log("installed Spec Kit git extension (specify creates a feature branch)");
+    return;
+  }
+  console.log("git extension missing after init; installing with specify extension add git…");
+  run("specify", ["extension", "add", "git"], projectRoot);
+  if (!gitExtensionInstalled(projectRoot)) {
+    die("specify extension add git did not register speckit.git.feature");
+  }
+  console.log("installed Spec Kit git extension (specify creates a feature branch)");
+}
+
+function installIntegrations(projectRoot, keys, script, primaryIntegration, { noGit = false } = {}) {
   let order = [...keys];
   const primary = primaryIntegration || order[0];
   if (order.includes(primary)) {
@@ -334,21 +378,7 @@ function installIntegrations(projectRoot, keys, script, primaryIntegration) {
   }
 
   const [firstKey, ...rest] = order;
-  run(
-    "specify",
-    [
-      "init",
-      "--here",
-      "--force",
-      "--integration",
-      firstKey,
-      "--script",
-      script,
-      "--non-interactive",
-      "--ignore-agent-tools",
-    ],
-    projectRoot,
-  );
+  run("specify", buildSpecifyInitArgs(firstKey, script, { noGit }), projectRoot);
 
   for (const key of rest) {
     const r = specifyCli(
@@ -387,6 +417,8 @@ function installIntegrations(projectRoot, keys, script, primaryIntegration) {
   } catch {
     /* ignore */
   }
+
+  ensureGitExtension(projectRoot, noGit);
 }
 
 function moveSpeckitSkills(projectRoot) {
@@ -938,7 +970,9 @@ async function main() {
     run("git", ["init"], projectRoot);
   }
 
-  installIntegrations(projectRoot, keys, opts.script, primaryIntegration);
+  installIntegrations(projectRoot, keys, opts.script, primaryIntegration, {
+    noGit: opts.noGit,
+  });
   moveSpeckitSkills(projectRoot);
   applyEnhancedSpeckitSkills(projectRoot, opts.script);
   writeAgentsFiles(projectRoot);
@@ -994,7 +1028,7 @@ Chained Spec Kit run (pause after clarify/analyze only when issues remain):
 Next steps:
   1. Open the project in your primary agent (${primaryIntegration})
   2. Run /speckit-constitution  (set THIS project's principles; keep the pipeline principle)
-  3. Run /speckit-specify       (starts the chained run above)
+  3. Run /speckit-specify       (starts the chained run above${opts.noGit ? "" : "; creates a feature branch first"})
 
 After clone on another machine:
   node scripts/link-agent-skills.mjs
@@ -1015,6 +1049,7 @@ export {
   usage,
   selectPrimaryIntegration,
   integrationsToInstall,
+  buildSpecifyInitArgs,
   ensureAgentBridgeFiles,
   AGENT_INTEGRATIONS,
 };

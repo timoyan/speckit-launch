@@ -45,7 +45,7 @@ Do **not** ask the user for `--ai`. Only pass `--only <integration>` if they exp
 | Custom parent dir | `node <launcher>/bin/new-project.mjs <name> --dir <parent>` |
 | Single agent only | add `--only copilot\|claude\|gemini\|grok\|cursor-agent\|codex\|…` |
 | Force script type | add `--script sh\|ps\|py` (default: `ps` on Windows, `sh` elsewhere) |
-| Skip git | add `--no-git` |
+| Skip git | add `--no-git` (also skips the Spec Kit git extension) |
 
 Ask for `<name>` if missing (kebab-case or simple identifier). Confirm the target path before running if the user did not give an absolute path.
 
@@ -57,7 +57,7 @@ Tell the user:
 2. Run `/speckit-constitution` for **this** project's principles (do not copy another project's constitution; keep the seeded pipeline principle)
 3. Then `/speckit-specify` — that starts the chained run:
    `specify → clarify → plan → tasks → analyze → implement → converge`
-   Pause after clarify/analyze only when issues remain; do not add extra “does this plan look OK?” gates.
+   Unless the project was created with `--no-git`, specify creates and checks out a feature branch first (Spec Kit git extension `before_specify` hook). Pause after clarify/analyze only when issues remain; do not add extra “does this plan look OK?” gates.
 
 ## Do not
 
