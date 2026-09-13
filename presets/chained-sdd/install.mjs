@@ -7,6 +7,7 @@
  * - Copies enhanced workflow skills to .agents/skills/ (with script type adaptation)
  * - Injects chained SDD rules into .agents/AGENTS.md
  * - Writes .cursor/rules/speckit-pipeline.mdc
+ * - Writes shared process rules to .agents/rules/ and Cursor alwaysApply mirrors
  * - Registers the preset (specify preset add --dev)
  * - Seeds the pipeline principle into .specify/memory/constitution.md
  * - Refreshes agent skill symlinks/junctions
@@ -25,6 +26,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeProcessRules } from "../../bin/new-project.mjs";
 
 const PRESET_ROOT = dirname(fileURLToPath(import.meta.url));
 const STARTER_ROOT = join(PRESET_ROOT, "..", "..");
@@ -184,6 +186,8 @@ function installPreset(targetDir) {
     copyTextFile(cursorRuleSrc, cursorRuleDest);
     console.log("✓ Wrote .cursor/rules/speckit-pipeline.mdc");
   }
+  writeProcessRules(projectRoot);
+  console.log("✓ Wrote .agents/rules/ (Cursor alwaysApply mirrors only if missing)");
 
   // 4b. Multi-agent docs pointer (.cursorrules, CLAUDE.md, .github/copilot-instructions.md)
   const agentDocCandidates = [

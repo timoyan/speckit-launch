@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,9 @@ import {
   integrationsToInstall,
   buildSpecifyInitArgs,
   ensureAgentBridgeFiles,
+  writeOptionalProcessTemplates,
+  writeProcessRules,
+  mergeGitattributes,
 } from "../bin/new-project.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -164,6 +167,7 @@ test("presets/chained-sdd integrity", () => {
   assert.ok(existsSync(join(presetDir, "workflows", "chained-sdd.yml")), "chained-sdd.yml missing");
   assert.ok(existsSync(join(presetDir, "rules", "pipeline-rules.md")), "pipeline-rules.md missing");
   assert.ok(existsSync(join(presetDir, "rules", "speckit-pipeline.mdc")), "speckit-pipeline.mdc missing");
+  assert.ok(existsSync(join(ROOT, "templates", "rules", "shell-encoding.md")), "shell-encoding.md missing");
 
   const skills = ["speckit-clarify", "speckit-analyze", "speckit-implement", "speckit-converge"];
   for (const s of skills) {
@@ -217,6 +221,69 @@ test("scripts/new-worktree.mjs integrity and help output", () => {
     encoding: "utf8",
   });
   assert.notEqual(rNoArgs.status, 0);
+});
+
+test("extracted process templates stay generic and copy only when missing", () => {
+  const agentsMd = readFileSync(join(ROOT, "templates", "AGENTS.md"), "utf8");
+  assert.ok(agentsMd.includes(".agents/rules/"));
+  assert.ok(agentsMd.includes("{{GITHUB_REPO}}"));
+  assert.ok(!agentsMd.includes("specify → clarify → plan"));
+
+  const changelog = readFileSync(join(ROOT, "templates", "rules", "changelog.md"), "utf8");
+  assert.ok(changelog.includes("{{GITHUB_REPO}}"));
+  assert.ok(changelog.includes("[skip ci]"));
+  assert.ok(!changelog.includes("timoyan/fin-tank"));
+  assert.ok(!changelog.includes("Asia/Taipei"));
+
+  const checks = readFileSync(join(ROOT, "templates", "rules", "commit-checks.md"), "utf8");
+  assert.ok(checks.includes("{{FORMAT_CHECK}}"));
+  assert.ok(checks.includes("{{TYPECHECK}}"));
+  assert.ok(checks.includes("{{RELATED_TESTS}}"));
+  assert.ok(!checks.includes("biome"));
+  assert.ok(!checks.includes("yarn"));
+
+  const skill = readFileSync(join(ROOT, "templates", "skills", "commit-push-pr", "SKILL.md"), "utf8");
+  assert.ok(skill.includes("{{GITHUB_REPO}}"));
+  assert.ok(!skill.includes("biome"));
+  assert.ok(!skill.includes("yarn"));
+
+  const hook = readFileSync(join(ROOT, "templates", "agents", "scripts", "safety-check.cjs"), "utf8");
+  assert.ok(hook.includes("git reset"));
+  assert.ok(hook.includes("rm -rf") || hook.includes("rm\\s+"));
+  assert.ok(!hook.includes("wrangler"));
+  assert.ok(!hook.includes("schema_reset"));
+  assert.ok(hook.includes("Example only"));
+
+  const snippet = readFileSync(join(ROOT, "templates", "github", "ci-paths-ignore.snippet.yml"), "utf8");
+  assert.ok(snippet.includes("paths-ignore"));
+  assert.ok(snippet.includes("specs/**"));
+  assert.ok(!snippet.includes("test:harness"));
+
+  const attrs = readFileSync(join(ROOT, "templates", "gitattributes.fragment"), "utf8");
+  assert.ok(attrs.includes("*.png binary"));
+  assert.ok(attrs.includes("*.md text eol=lf"));
+
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-extract-"));
+  try {
+    writeProcessRules(tmp);
+    writeOptionalProcessTemplates(tmp);
+    mergeGitattributes(tmp);
+    assert.ok(existsSync(join(tmp, ".agents", "rules", "shell-encoding.md")));
+    assert.ok(existsSync(join(tmp, ".agents", "rules", "changelog.md")));
+    assert.ok(existsSync(join(tmp, ".agents", "rules", "commit-checks.md")));
+    const cursorMirror = readFileSync(join(tmp, ".cursor", "rules", "changelog.mdc"), "utf8");
+    assert.ok(cursorMirror.includes("alwaysApply: true"));
+    assert.ok(cursorMirror.includes("{{GITHUB_REPO}}"));
+    assert.ok(existsSync(join(tmp, ".agents", "skills", "commit-push-pr", "SKILL.md")));
+    assert.ok(existsSync(join(tmp, ".agents", "hooks.json")));
+    assert.ok(readFileSync(join(tmp, ".gitattributes"), "utf8").includes("*.png binary"));
+
+    writeFileSync(join(tmp, ".agents", "rules", "changelog.md"), "project-specific\n");
+    writeProcessRules(tmp);
+    assert.equal(readFileSync(join(tmp, ".agents", "rules", "changelog.md"), "utf8"), "project-specific\n");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test("ensureAgentBridgeFiles creates bridge files pointing to .agents/AGENTS.md", () => {

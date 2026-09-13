@@ -29,6 +29,17 @@ node scripts/link-agent-skills.mjs
 
 Rebuilds junctions/symlinks from `.agents/skills` to each agent skills directory.
 
+## Changelog and commit gate
+
+Canonical for every agent (Claude, Cursor, Copilot, Gemini, Grok, Codex, Antigravity): [`.agents/rules/`](rules/). Cursor also gets an `alwaysApply` mirror under `.cursor/rules/*.mdc`; edit the `.agents/rules/` copy if they drift. These are starter process rules, not constitution principles. Replace `{{GITHUB_REPO}}` and the commit-check placeholders. Do not copy another project's toolchain or changelog entries.
+
+- Record every landing on `main` in `CHANGELOG.md`. New bullets link the pull request (`[#N](https://github.com/{{GITHUB_REPO}}/pull/N)`), not a commit SHA. Add that link after `gh pr create`, without `[skip ci]`. Direct commits on `main` stay unlinked. Do not rewrite historical SHA links. Details: [changelog.md](rules/changelog.md).
+- Before commit, run this repo's format, typecheck, and related-test commands in [commit-checks.md](rules/commit-checks.md). If a command still contains `{{`, do not invent one and do not use `--no-verify`.
+- Do not rewrite UTF-8 docs with Windows PowerShell's default encoding. Details: [shell-encoding.md](rules/shell-encoding.md).
+- After `gh pr create`, append the PR link. Skill: [commit-push-pr](skills/commit-push-pr/SKILL.md).
+
+A docs-only `push` to `main` may ignore Markdown paths. See the launcher snippet `templates/github/ci-paths-ignore.snippet.yml`. Do not add that ignore list to `pull_request`.
+
 ## Rules of thumb
 
 - Spec-first: write or update `specs/*/spec.md` before inventing product behavior in code.

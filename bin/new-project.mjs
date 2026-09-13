@@ -556,25 +556,79 @@ function mergeGitignore(projectRoot) {
   console.log("merged Spec Kit / skill-mount rules into .gitignore");
 }
 
+const GITATTRIBUTES_LF_MARKER = "# speckit-launch: line endings";
+const GITATTRIBUTES_TEXT_MARKER = "# speckit-launch: text and binary";
+
 function mergeGitattributes(projectRoot) {
   const fragmentPath = join(TEMPLATES, "gitattributes.fragment");
   if (!existsSync(fragmentPath)) return;
   const fragment = readText(fragmentPath).trimEnd() + "\n";
+  const textBinaryAt = fragment.indexOf(GITATTRIBUTES_TEXT_MARKER);
+  const textBinary = textBinaryAt >= 0 ? fragment.slice(textBinaryAt) : "";
   const dest = join(projectRoot, ".gitattributes");
-  const marker = "# speckit-launch: line endings";
   if (!existsSync(dest)) {
     writeText(dest, fragment);
     console.log("wrote .gitattributes (LF line endings)");
     return;
   }
   const existing = readText(dest);
-  if (existing.includes(marker) || existing.includes("eol=lf")) {
+  const hasLf = existing.includes(GITATTRIBUTES_LF_MARKER) || existing.includes("eol=lf");
+  const hasText = !textBinary || existing.includes(GITATTRIBUTES_TEXT_MARKER);
+  if (hasLf && hasText) {
     console.log(".gitattributes already has LF rules; skipping merge");
     return;
   }
+  const addition = !hasLf ? fragment : textBinary;
   const sep = existing.endsWith("\n") ? "\n" : "\n\n";
-  writeText(dest, existing.trimEnd() + sep + fragment);
-  console.log("merged LF line-ending rules into .gitattributes");
+  writeText(dest, existing.trimEnd() + sep + addition);
+  console.log("merged line-ending rules into .gitattributes");
+}
+
+function copyIfMissing(src, dest) {
+  if (!existsSync(src) || existsSync(dest)) return false;
+  mkdirSync(dirname(dest), { recursive: true });
+  copyTextFile(src, dest);
+  return true;
+}
+
+const PROCESS_RULES = [
+  { name: "changelog", description: "Every main landing must update CHANGELOG.md" },
+  { name: "commit-checks", description: "Every git commit must pass this repo's format, typecheck, and related tests" },
+  { name: "shell-encoding", description: "Windows PowerShell UTF-8 writing rules (avoid mojibake in CHANGELOG and docs)" },
+];
+
+function cursorAlwaysApplyRule(description, body) {
+  return `---\ndescription: ${description}\nalwaysApply: true\n---\n\n${body.trim()}\n`;
+}
+
+function writeProcessRules(projectRoot) {
+  for (const rule of PROCESS_RULES) {
+    const src = join(TEMPLATES, "rules", `${rule.name}.md`);
+    if (!existsSync(src)) continue;
+    const body = readText(src);
+    const agentsDest = join(projectRoot, ".agents", "rules", `${rule.name}.md`);
+    if (copyIfMissing(src, agentsDest)) {
+      console.log(`wrote .agents/rules/${rule.name}.md`);
+    }
+    const cursorDest = join(projectRoot, ".cursor", "rules", `${rule.name}.mdc`);
+    if (!existsSync(cursorDest)) {
+      mkdirSync(dirname(cursorDest), { recursive: true });
+      writeText(cursorDest, cursorAlwaysApplyRule(rule.description, body));
+      console.log(`wrote .cursor/rules/${rule.name}.mdc (Cursor mirror)`);
+    }
+  }
+}
+
+function writeOptionalProcessTemplates(projectRoot) {
+  writeProcessRules(projectRoot);
+  const copies = [
+    [join(TEMPLATES, "skills", "commit-push-pr", "SKILL.md"), join(projectRoot, ".agents", "skills", "commit-push-pr", "SKILL.md"), ".agents/skills/commit-push-pr/SKILL.md"],
+    [join(TEMPLATES, "agents", "scripts", "safety-check.cjs"), join(projectRoot, ".agents", "scripts", "safety-check.cjs"), ".agents/scripts/safety-check.cjs"],
+    [join(TEMPLATES, "agents", "hooks.json"), join(projectRoot, ".agents", "hooks.json"), ".agents/hooks.json"],
+  ];
+  for (const [src, dest, label] of copies) {
+    if (copyIfMissing(src, dest)) console.log(`wrote ${label}`);
+  }
 }
 
 const PIPELINE_MARKER = "<!-- speckit-launch:pipeline -->";
@@ -977,6 +1031,7 @@ async function main() {
   applyEnhancedSpeckitSkills(projectRoot, opts.script);
   writeAgentsFiles(projectRoot);
   writeCursorPipelineRule(projectRoot);
+  writeOptionalProcessTemplates(projectRoot);
   overlaySpeckitWorkflow(projectRoot);
   const presetInstalled = installChainedSddPreset(projectRoot);
   seedConstitutionPipeline(projectRoot, { presetInstalled });
@@ -1027,8 +1082,9 @@ Chained Spec Kit run (pause after clarify/analyze only when issues remain):
 
 Next steps:
   1. Open the project in your primary agent (${primaryIntegration})
-  2. Run /speckit-constitution  (set THIS project's principles; keep the pipeline principle)
-  3. Run /speckit-specify       (starts the chained run above${opts.noGit ? "" : "; creates a feature branch first"})
+  2. Fill {{GITHUB_REPO}} in .agents/rules/changelog.md and the three commands in .agents/rules/commit-checks.md
+  3. Run /speckit-constitution  (set THIS project's principles; keep the pipeline principle)
+  4. Run /speckit-specify       (starts the chained run above${opts.noGit ? "" : "; creates a feature branch first"})
 
 After clone on another machine:
   node scripts/link-agent-skills.mjs
@@ -1051,6 +1107,9 @@ export {
   integrationsToInstall,
   buildSpecifyInitArgs,
   ensureAgentBridgeFiles,
+  writeOptionalProcessTemplates,
+  writeProcessRules,
+  mergeGitattributes,
   AGENT_INTEGRATIONS,
 };
 

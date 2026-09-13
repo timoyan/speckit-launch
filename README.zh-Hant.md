@@ -111,9 +111,10 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 8. 自動建立多 AI 工具橋接檔案（`CLAUDE.md`、`.cursorrules`、`.github/copilot-instructions.md`）指向主控 `.agents/AGENTS.md`，並對現存的 agent 說明檔（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`.cursorrules`、`.github/copilot-instructions.md`）補上流程 pointer，實現零設定多 IDE 自動識別
 9. 複製並執行 `scripts/link-agent-skills.mjs`（Windows junction／Unix 符號連結）
 10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
-11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`），讓新專案在 Windows／macOS／Linux 都維持 LF
+11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`，外加常見文字檔與二進位宣告），讓新專案在 Windows／macOS／Linux 都維持 LF
+12. 若尚未存在，把可選流程規則寫進 `.agents/rules/`（所有 agent），並為 Cursor 產生 `alwaysApply` 鏡像 `.cursor/rules/*.mdc`。同時複製 `commit-push-pr` skill 與通用危險指令 hook。`{{GITHUB_REPO}}` 與三個檢查指令填在 `.agents/rules/`。純文件 CI 略過片段在 `templates/github/ci-paths-ignore.snippet.yml`，只貼進 `on.push`；不要加到 `pull_request`，PR tip 也不要加 `[skip ci]`。
 
-它 **不會** 複製別的專案的產品憲章。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
+它 **不會** 複製別的專案的產品憲章、CHANGELOG 條目、deploy 指令或 CI job 本體。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
 
 ## Spec Kit 流程（從實際專案抽出）
 
@@ -174,7 +175,7 @@ Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解�
 
 
 
-產品特有規則（領域模型、UI kit、changelog 格式……）不放進這個啟動器。那些用新專案的 `/speckit-constitution` 寫。
+產品特有規則（領域模型、UI kit、CHANGELOG 條目、deploy 指令、CI job 本體）不放進這個啟動器。CHANGELOG *政策*（連 PR、不連 commit SHA）是可選範本，不是憲章原則。領域規則用新專案的 `/speckit-constitution` 寫。
 
 ## 升級 `specify` CLI 之後
 
@@ -280,9 +281,13 @@ speckit-launch/
 │       └── speckit-converge/SKILL.md        # 自動 ADR 萃取與單檔活規格 (Living Spec) 扁平化
 ├── templates/                               # 【純專案 Repo 基礎架構 Scaffolding】
 │   ├── AGENTS.md                            # 專案 Agent 基礎骨架（初始化時自動注入連鎖 SDD 規則）
-│   ├── gitattributes.fragment               # 跨平台 LF 換行宣告 (* text=auto eol=lf)
+│   ├── gitattributes.fragment               # LF 換行，外加常見文字檔與二進位宣告
 │   ├── gitignore.fragment                   # Gitignore 範本（擴充套件快取、skill 掛載、本地憑證）
-│   └── skills.json                          # .agents/skills 目錄清冊元數據
+│   ├── skills.json                          # .agents/skills 目錄清冊元數據
+│   ├── rules/                               # 所有 agent 共用的流程規則
+│   ├── skills/commit-push-pr/               # commit、push，再補 PR 連結
+│   ├── agents/                              # 通用危險指令 hook（不含 deploy／db reset）
+│   └── github/ci-paths-ignore.snippet.yml   # 只貼進 push；不是 workflow
 ├── skill/new-project/
 │   └── SKILL.md                             # 供 Agent 自主呼叫 speckit-launch 的技能定義
 ├── tests/

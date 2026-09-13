@@ -1,0 +1,18 @@
+# Optional snippet for an existing CI workflow. Paste under `on.push` only.
+# Do not add paths-ignore to `pull_request`: a docs-only PR should still run CI.
+# Do not put [skip ci] on a PR tip — GitHub skips the whole pull_request workflow.
+#
+# This snippet does not include install, test, Node version, or shard matrix.
+# Keep those in the project's own job.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "specs/**"
+      - ".specify/**"
+      - "LICENSE"
+  pull_request:
+    branches: [main]

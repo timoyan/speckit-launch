@@ -111,9 +111,10 @@ Named projects are created under the **current working directory** unless `--dir
 8. Creates multi-agent bridge pointer files (`CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`) pointing to `.agents/AGENTS.md` and merges pipeline pointers into any existing agent docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`) for zero-config multi-IDE discovery
 9. Copies and runs `scripts/link-agent-skills.mjs` (Windows junction / Unix symlink)
 10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
-11. Writes or merges `.gitattributes` (`* text=auto eol=lf`) so generated projects keep LF on Windows / macOS / Linux
+11. Writes or merges `.gitattributes` (`* text=auto eol=lf`, plus explicit text/binary hints) so generated projects keep LF on Windows / macOS / Linux
+12. If missing, copies optional process starters into `.agents/rules/` (every agent) and a Cursor `alwaysApply` mirror under `.cursor/rules/`. Also copies the `commit-push-pr` skill and a generic dangerous-command hook. Fill `{{GITHUB_REPO}}` and the three commit-check commands in `.agents/rules/`. A docs-only CI ignore snippet lives at `templates/github/ci-paths-ignore.snippet.yml` — paste it under `on.push` only; do not put it on `pull_request`, and do not add `[skip ci]` to a PR tip.
 
-It does **not** copy another project's product constitution. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
+It does **not** copy another project's product constitution, changelog entries, deploy commands, or CI job body. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
 
 ## Spec Kit pipeline (from production use)
 
@@ -174,7 +175,7 @@ Because Spec Kit decouples stages via disk artifacts in `specs/<feature>/`, you 
 
 
 
-Product-specific rules (domain model, UI kit, changelog format, …) stay out of this launcher. Write those with `/speckit-constitution` for the new project.
+Product-specific rules (domain model, UI kit, changelog entries, deploy commands, CI job body) stay out of this launcher. The changelog *policy* (link the pull request, never a commit SHA) is an optional starter, not a constitution principle. Write domain rules with `/speckit-constitution` for the new project.
 
 ## After upgrading the `specify` CLI
 
@@ -280,9 +281,13 @@ speckit-launch/
 │       └── speckit-converge/SKILL.md        # Automated ADR extraction & living spec consolidation
 ├── templates/                               # [Pure Repository Infrastructure Scaffolding]
 │   ├── AGENTS.md                            # Base agent autonomy scaffolding (pipeline rules injected at launch)
-│   ├── gitattributes.fragment               # Cross-platform LF line endings (* text=auto eol=lf)
+│   ├── gitattributes.fragment               # LF line endings plus explicit text/binary hints
 │   ├── gitignore.fragment                   # Gitignore template (extension caches, skill-mounts, local credentials)
-│   └── skills.json                          # Shared .agents/skills catalog metadata
+│   ├── skills.json                          # Shared .agents/skills catalog metadata
+│   ├── rules/                               # Canonical process rules for every agent
+│   ├── skills/commit-push-pr/               # Commit, push, then append the PR link
+│   ├── agents/                              # Generic dangerous-command hook (no deploy/db-reset)
+│   └── github/ci-paths-ignore.snippet.yml   # Paste under push only; not a workflow
 ├── skill/new-project/
 │   └── SKILL.md                             # Agent user skill for invoking speckit-launch
 ├── tests/
