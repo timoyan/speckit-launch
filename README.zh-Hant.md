@@ -117,14 +117,13 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`，外加常見文字檔與二進位宣告），讓新專案在 Windows／macOS／Linux 都維持 LF
 12. 若尚未存在，把可選流程規則寫進 `.agents/rules/`（所有 agent），並為 Cursor 產生 `alwaysApply` 鏡像 `.cursor/rules/*.mdc`。同時複製 `commit-push-pr` skill 與通用危險指令 hook。`{{GITHUB_REPO}}` 與三個檢查指令填在 `.agents/rules/`。純文件 CI 略過片段在 `templates/github/ci-paths-ignore.snippet.yml`，只貼進 `on.push`；不要加到 `pull_request`，PR tip 也不要加 `[skip ci]`。
-13. 若尚未存在，把 React / Next.js 角色提示複製到 `agent-roles/react-reviewer.md`、`agent-roles/react-implementer.md`、`agent-roles/react-checker.md`。不綁某一個 agent。每個檔案自己宣告 Scope。implement 之後依**這次改到的檔案**對 checker 與 reviewer（混合 diff 全部都跑）。版本不決定角色：對上之後讀 Scope 指定的版本，再依那個版本判斷。審查與實作跟專案既有的狀態管理與樣式函式庫。checker 跑專案自己的型別檢查、lint 與測試（Biome、Oxlint、ESLint，或專案實際設定的工具）。把檔案內容送進你指派該角色的 pane 即可，例如：
+13. 若尚未存在，把 React / Next.js 角色提示複製到 `agent-roles/react-reviewer.md`、`agent-roles/react-implementer.md`、`agent-roles/react-checker.md`。不綁某一個 agent。每個檔案自己宣告 Scope。implement 之後依**這次改到的檔案**對 checker 與 reviewer（混合 diff 全部都跑）。版本不決定角色：對上之後讀 Scope 指定的版本，再依那個版本判斷。審查與實作跟專案既有的狀態管理與樣式函式庫。checker 跑專案自己的型別檢查、lint 與測試（Biome、Oxlint、ESLint，或專案實際設定的工具）。自己啟動（不在 Spec Kit 鏈裡）。一個 session、每個角色檔一個 pane。`--kind` 必填。`--only` 限制要開的檔。已在跑的同名 agent 會跳過。不會依 diff 自動選角色。
 
 ```bash
-herdr agent start --type agy --pane react-reviewer
-herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
+node scripts/start-herdr-roles.mjs --kind agy
+node scripts/start-herdr-roles.mjs --kind agy --only react-checker,react-reviewer
+herdr session attach speckit-<repo>
 ```
-
-`--type` 可以是任何 agent。pane 名稱是角色，不是產品。
 
 它 **不會** 複製別的專案的產品憲章、CHANGELOG 條目、deploy 指令或 CI job 本體。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
 
@@ -220,7 +219,7 @@ npx speckit-launch upgrade --dir <path>    # 目標專案（預設目前目錄�
 - `.specify/workflows/overlays/speckit/chained-sdd.yml`（`specify workflow overlay list speckit` 已顯示 chained-sdd enabled 時只覆寫檔案；否則 `--apply` 先跑 `specify workflow overlay add`，dry-run 不會真的 add）
 - `.agents/skills/speckit-clarify`、`speckit-analyze`、`speckit-implement`、`speckit-converge` 的 `SKILL.md`（腳本類型先讀 `.specify/init-options.json` 的 `script`，沒有再看 `.specify/scripts`；bash 與 powershell 同時存在時不預設 bash）
 - `.cursor/rules/speckit-pipeline.mdc`
-- `scripts/link-agent-skills.mjs` 與 `scripts/new-worktree.mjs`
+- `scripts/link-agent-skills.mjs`、`scripts/new-worktree.mjs` 與 `scripts/start-herdr-roles.mjs`
 - `.specify/presets/chained-sdd/` 裡啟動器已知的檔（該目錄多出來的檔保留；不靠 `specify preset add`，已安裝時它會 skip）
 
 它不會跑 `specify init` 或 `specify integration install --force`，也不會重寫 `workflow.yml`、`.specify/templates/`、`.specify/scripts/`、已填的 `constitution.md`、`.gitignore`、`.gitattributes`、`package.json`。可選範本（`changelog`、`commit-checks`、`shell-encoding`、`commit-push-pr`、hooks、`safety-check`）與 `agent-roles/react-{reviewer,implementer,checker}.md` 只有缺檔才複製。`.agents/AGENTS.md` 只在成對標記 `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` 中間替換。只有開頭、沒有結尾標記時 skip（`pipeline section has no end marker`）。
@@ -294,7 +293,8 @@ speckit-launch/
 │   └── new-project.mjs                      # 主啟動器 CLI 流程調度核心
 ├── scripts/
 │   ├── link-agent-skills.mjs                # OS 層級符號連結／Junction 掛載工具
-│   └── new-worktree.mjs                     # 自動化 Git Worktree 隔離與技能掛載工具
+│   ├── new-worktree.mjs                     # 自動化 Git Worktree 隔離與技能掛載工具
+│   └── start-herdr-roles.mjs                # 一個 Herdr session，每個 agent-roles 檔一個 pane
 ├── presets/chained-sdd/                     # 【自包含 Chained SDD 方法論完整套件】
 │   ├── preset.yml                           # Spec Kit Preset 宣告清單
 │   ├── install.mjs                          # 獨立 Preset 安裝腳本（注入既有專案）

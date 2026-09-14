@@ -132,7 +132,7 @@ edits:
     step:
       id: review-code
       type: gate
-      message: "Implementation stopped. Review the diff before converge seals docs. Match agent-roles/*-checker.md and *-reviewer.md to changed files by each file's Scope (more than one may match). Read the versions that Scope names before reviewing. Apply Blocking fixes first. Proceed only when this code is final."
+      message: "Implementation stopped. Review the diff before converge seals docs. Match agent-roles/*-checker.md and *-reviewer.md to changed files by each file's Scope (more than one may match). Read the versions that Scope names before reviewing. Optional: node scripts/start-herdr-roles.mjs --kind <agent>. Apply Blocking fixes first. Proceed only when this code is final."
       options: [proceed, abort]
       on_reject: retry
 

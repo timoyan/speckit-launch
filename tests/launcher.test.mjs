@@ -239,6 +239,41 @@ test("speckit-converge ensures transient execution artifacts are removed after A
   assert.ok(content.includes("FEATURE_DIR/analysis.md"), "converge must remove FEATURE_DIR/analysis.md");
 });
 
+test("scripts/start-herdr-roles.mjs lists roles without calling herdr", () => {
+  const scriptPath = join(ROOT, "scripts", "start-herdr-roles.mjs");
+  const rHelp = spawnSync(process.execPath, [scriptPath, "--help"], { encoding: "utf8" });
+  assert.equal(rHelp.status, 0);
+  assert.match(rHelp.stdout, /--kind/);
+  assert.match(rHelp.stdout, /--only/);
+
+  const rNoKind = spawnSync(process.execPath, [scriptPath], { encoding: "utf8" });
+  assert.notEqual(rNoKind.status, 0);
+  assert.match(rNoKind.stderr, /--kind is required/);
+
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-herdr-roles-"));
+  try {
+    mkdirSync(join(tmp, "scripts"), { recursive: true });
+    mkdirSync(join(tmp, "agent-roles"), { recursive: true });
+    writeFileSync(join(tmp, "scripts", "start-herdr-roles.mjs"), readFileSync(scriptPath));
+    writeFileSync(join(tmp, "agent-roles", "react-checker.md"), "# checker\n");
+    writeFileSync(join(tmp, "agent-roles", "react-reviewer.md"), "# reviewer\n");
+    writeFileSync(join(tmp, "agent-roles", "Bad.md"), "# no\n");
+    const copied = join(tmp, "scripts", "start-herdr-roles.mjs");
+    const dry = spawnSync(process.execPath, [copied, "--kind", "agy", "--only", "react-checker", "--dry-run"], {
+      encoding: "utf8",
+    });
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.match(dry.stdout, /react-checker\s+agent-roles\/react-checker\.md/);
+    assert.doesNotMatch(dry.stdout, /react-reviewer/);
+    assert.match(dry.stdout, /dry-run \(no herdr commands\)/);
+    const bad = spawnSync(process.execPath, [copied, "--kind", "agy", "--dry-run"], { encoding: "utf8" });
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stderr, /herdr agent name/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("scripts/new-worktree.mjs integrity and help output", () => {
   const scriptPath = join(ROOT, "scripts", "new-worktree.mjs");
   assert.ok(existsSync(scriptPath), "new-worktree.mjs must exist");

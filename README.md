@@ -117,14 +117,13 @@ Named projects are created under the **current working directory** unless `--dir
 10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`, plus explicit text/binary hints) so generated projects keep LF on Windows / macOS / Linux
 12. If missing, copies optional process starters into `.agents/rules/` (every agent) and a Cursor `alwaysApply` mirror under `.cursor/rules/`. Also copies the `commit-push-pr` skill and a generic dangerous-command hook. Fill `{{GITHUB_REPO}}` and the three commit-check commands in `.agents/rules/`. A docs-only CI ignore snippet lives at `templates/github/ci-paths-ignore.snippet.yml` — paste it under `on.push` only; do not put it on `pull_request`, and do not add `[skip ci]` to a PR tip.
-13. If missing, copies React / Next.js role prompts to `agent-roles/react-reviewer.md`, `agent-roles/react-implementer.md`, and `agent-roles/react-checker.md`. They are not tied to a particular agent. Each file declares a Scope. After implement, match checkers and reviewers to **changed files** (a mixed diff runs every match). Versions do not choose the role: after a match, read the versions that Scope names and judge against those. Review and implement follow that project's state and CSS libraries. The checker runs the project's own typecheck, lint, and test commands (Biome, Oxlint, ESLint, or whatever is configured). Load whichever pane you assign the role to, for example:
+13. If missing, copies React / Next.js role prompts to `agent-roles/react-reviewer.md`, `agent-roles/react-implementer.md`, and `agent-roles/react-checker.md`. They are not tied to a particular agent. Each file declares a Scope. After implement, match checkers and reviewers to **changed files** (a mixed diff runs every match). Versions do not choose the role: after a match, read the versions that Scope names and judge against those. Review and implement follow that project's state and CSS libraries. The checker runs the project's own typecheck, lint, and test commands (Biome, Oxlint, ESLint, or whatever is configured). Start them yourself (this is not part of the Spec Kit chain). One session, one pane per role file. `--kind` is required. `--only` limits which files start. Existing live agent names are skipped. This does not pick roles from the diff.
 
 ```bash
-herdr agent start --type agy --pane react-reviewer
-herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
+node scripts/start-herdr-roles.mjs --kind agy
+node scripts/start-herdr-roles.mjs --kind agy --only react-checker,react-reviewer
+herdr session attach speckit-<repo>
 ```
-
-`--type` can be any agent. The pane name is the role, not the product.
 
 It does **not** copy another project's product constitution, changelog entries, deploy commands, or CI job body. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
 
@@ -220,7 +219,7 @@ npx speckit-launch upgrade --dir <path>    # target project (default: cwd)
 - `.specify/workflows/overlays/speckit/chained-sdd.yml` (if `specify workflow overlay list speckit` already shows chained-sdd enabled, this only overwrites the file; otherwise `--apply` runs `specify workflow overlay add` first — dry-run does not)
 - `.agents/skills/speckit-clarify`, `speckit-analyze`, `speckit-implement`, `speckit-converge` `SKILL.md` (script type from `.specify/init-options.json` `script`, else `.specify/scripts`; bash and powershell together do not default to bash)
 - `.cursor/rules/speckit-pipeline.mdc`
-- `scripts/link-agent-skills.mjs` and `scripts/new-worktree.mjs`
+- `scripts/link-agent-skills.mjs`, `scripts/new-worktree.mjs`, and `scripts/start-herdr-roles.mjs`
 - known files under `.specify/presets/chained-sdd/` (extra files in that directory are kept; this does not rely on `specify preset add`, which skips when the preset is already installed)
 
 It does not run `specify init` or `specify integration install --force`, and it does not rewrite `workflow.yml`, `.specify/templates/`, `.specify/scripts/`, a filled `constitution.md`, `.gitignore`, `.gitattributes`, or `package.json`. Optional starters (`changelog`, `commit-checks`, `shell-encoding`, `commit-push-pr`, hooks, `safety-check`) and `agent-roles/react-{reviewer,implementer,checker}.md` are copied only when missing. `.agents/AGENTS.md` is updated only between paired `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` markers. A start marker with no end marker is skipped (`pipeline section has no end marker`).
@@ -294,7 +293,8 @@ speckit-launch/
 │   └── new-project.mjs                      # Main launcher CLI orchestrator
 ├── scripts/
 │   ├── link-agent-skills.mjs                # OS junction / symlink mount utility
-│   └── new-worktree.mjs                     # Automated Git Worktree isolation & skill mount tool
+│   ├── new-worktree.mjs                     # Automated Git Worktree isolation & skill mount tool
+│   └── start-herdr-roles.mjs                # One Herdr session, one pane per agent-roles file
 ├── presets/chained-sdd/                     # [Self-Contained Chained SDD Methodology Bundle]
 │   ├── preset.yml                           # Spec Kit Preset declaration
 │   ├── install.mjs                          # Standalone preset installer for existing projects

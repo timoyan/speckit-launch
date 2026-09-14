@@ -58,6 +58,7 @@ Tell the user:
 3. Then `/speckit-specify` — that starts the chained run:
    `specify → clarify → plan → tasks → analyze → implement` (then stop; `/speckit-converge` is manual after code review)
    Unless the project was created with `--no-git`, specify creates and checks out a feature branch first (Spec Kit git extension `before_specify` hook). Pause after clarify/analyze only when issues remain; do not add extra “does this plan look OK?” gates.
+4. To open role panes, the user runs `node scripts/start-herdr-roles.mjs --kind <agent>`. Do not run that as part of the Spec Kit chain. It does not pick roles from the diff.
 
 ## Do not
 

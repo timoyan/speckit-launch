@@ -780,7 +780,7 @@ const LAYER2_SKILLS = [
   "speckit-converge",
 ];
 
-const LAYER2_HELPER_SCRIPTS = ["link-agent-skills.mjs", "new-worktree.mjs"];
+const LAYER2_HELPER_SCRIPTS = ["link-agent-skills.mjs", "new-worktree.mjs", "start-herdr-roles.mjs"];
 
 const AGENT_DOC_CANDIDATES = [
   "AGENTS.md",
@@ -1371,9 +1371,13 @@ function updatePackageJsonScripts(projectRoot) {
       pkg.scripts["worktree:new"] = "node scripts/new-worktree.mjs";
       changed = true;
     }
+    if (!pkg.scripts["herdr:roles"]) {
+      pkg.scripts["herdr:roles"] = "node scripts/start-herdr-roles.mjs";
+      changed = true;
+    }
     if (changed) {
       writeText(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-      console.log("updated package.json with helper scripts (link-skills, worktree:new)");
+      console.log("updated package.json with helper scripts (link-skills, worktree:new, herdr:roles)");
     }
   } catch {
     /* continue */
@@ -1543,8 +1547,9 @@ Agent roles (not bound to one agent; any --type). Match by each file's Scope; th
   agent-roles/react-reviewer.md
   agent-roles/react-implementer.md
   agent-roles/react-checker.md
-  herdr agent start --type <agent> --pane react-reviewer
-  herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
+  node scripts/start-herdr-roles.mjs --kind <agent>
+  node scripts/start-herdr-roles.mjs --kind <agent> --only react-checker,react-reviewer
+  herdr session attach speckit-<repo>
 
 Parallel multi-branch development (Git Worktree):
   node scripts/new-worktree.mjs <branch-name>
