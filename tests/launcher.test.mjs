@@ -44,8 +44,20 @@ test("getPipelineRules returns canonical pipeline rules", () => {
   const rules = getPipelineRules();
   assert.ok(rules.length > 100, "rules should not be empty");
   assert.ok(
-    rules.includes("specify → clarify → plan → tasks → analyze → implement → converge"),
-    "rules must contain full chained sequence",
+    rules.includes("specify → clarify → plan → tasks → analyze → implement"),
+    "rules must contain the chained sequence through implement",
+  );
+  assert.ok(
+    rules.includes("Do **not** start `/speckit-converge`"),
+    "rules must not auto-start converge after implement",
+  );
+  assert.ok(
+    rules.includes("Match roles to **changed files**"),
+    "rules must match roles by diff, not one role for the project",
+  );
+  assert.ok(
+    rules.includes("Versions do **not** choose the role"),
+    "rules must read versions after a role matches",
   );
   assert.ok(
     rules.includes("## 4. Remediation Action Checklist"),
@@ -453,6 +465,37 @@ test("overlay add failure copies the file, and an enabled overlay only overwrite
     syncLayer2(tmp, { dryRun: false, runSpecify: already });
     assert.equal(listed.includes("add"), false);
     assert.equal(readFileSync(overlay, "utf8").replace(/\r\n/g, "\n"), src.replace(/\r\n/g, "\n"));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("upgrade adds agent-roles when missing and does not overwrite an existing role prompt", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "speckit-agent-roles-"));
+  try {
+    mkdirSync(join(tmp, ".specify"), { recursive: true });
+    const reviewer = join(tmp, "agent-roles", "react-reviewer.md");
+    const dry = syncLayer2(tmp, { dryRun: true, runSpecify: specifyListsEnabled });
+    assert.equal(existsSync(reviewer), false);
+    const planned = dry.actions.find((a) => a.path === "agent-roles/react-reviewer.md");
+    assert.equal(planned.status, "add");
+
+    syncLayer2(tmp, { dryRun: false, runSpecify: specifyListsEnabled });
+    const written = readFileSync(reviewer, "utf8");
+    assert.match(written, /not bound to a specific agent/);
+    assert.match(written, /Do not modify any files/);
+    assert.match(written, /Do not ask the project to switch libraries/);
+    assert.match(written, /## Scope/);
+    assert.match(written, /## Versions in use/);
+    assert.match(written, /prefer the resolved version over the range/);
+    assert.equal(existsSync(join(tmp, "agent-roles", "react-implementer.md")), true);
+    assert.equal(existsSync(join(tmp, "agent-roles", "react-checker.md")), true);
+    assert.doesNotMatch(readFileSync(join(tmp, "agent-roles", "react-checker.md"), "utf8"), /agy|grok|cursor-agent/);
+    assert.match(readFileSync(join(tmp, "agent-roles", "react-checker.md"), "utf8"), /Do not default to `eslint \.`/);
+
+    writeFileSync(reviewer, "local reviewer prompt\n");
+    syncLayer2(tmp, { dryRun: false, runSpecify: specifyListsEnabled });
+    assert.equal(readFileSync(reviewer, "utf8"), "local reviewer prompt\n");
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

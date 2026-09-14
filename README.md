@@ -117,6 +117,14 @@ Named projects are created under the **current working directory** unless `--dir
 10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`, plus explicit text/binary hints) so generated projects keep LF on Windows / macOS / Linux
 12. If missing, copies optional process starters into `.agents/rules/` (every agent) and a Cursor `alwaysApply` mirror under `.cursor/rules/`. Also copies the `commit-push-pr` skill and a generic dangerous-command hook. Fill `{{GITHUB_REPO}}` and the three commit-check commands in `.agents/rules/`. A docs-only CI ignore snippet lives at `templates/github/ci-paths-ignore.snippet.yml` — paste it under `on.push` only; do not put it on `pull_request`, and do not add `[skip ci]` to a PR tip.
+13. If missing, copies React / Next.js role prompts to `agent-roles/react-reviewer.md`, `agent-roles/react-implementer.md`, and `agent-roles/react-checker.md`. They are not tied to a particular agent. Each file declares a Scope. After implement, match checkers and reviewers to **changed files** (a mixed diff runs every match). Versions do not choose the role: after a match, read the versions that Scope names and judge against those. Review and implement follow that project's state and CSS libraries. The checker runs the project's own typecheck, lint, and test commands (Biome, Oxlint, ESLint, or whatever is configured). Load whichever pane you assign the role to, for example:
+
+```bash
+herdr agent start --type agy --pane react-reviewer
+herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
+```
+
+`--type` can be any agent. The pane name is the role, not the product.
 
 It does **not** copy another project's product constitution, changelog entries, deploy commands, or CI job body. After bootstrap, run `/speckit-constitution` in the new project (keep the seeded pipeline principle; fill the rest for **this** product).
 
@@ -127,7 +135,7 @@ Official Spec Kit treats clarify / analyze / checklist as optional quality gates
 This launcher overlays the **production chained run** used in real Spec Kit repos:
 
 ```
-specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
+specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → review-code [gate] → converge
 ```
 
 | Step | Default behavior |
@@ -138,7 +146,8 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 | After **tasks** | Always run **analyze** |
 | After **analyze** | Analysis report written to `analysis.md`. `review-analyze` pauses for checklist inspection. Zero findings or only LOW → **continue to implement** |
 | During **implement** | Step 2.5 auto-applies checked remediations from `analysis.md` before executing tasks |
-| After **implement** | Run **converge**. If tasks were appended, implement then converge again (stop when converged, or after 3 passes). When converged: auto-extracts ADR, consolidates living spec, and cleans transient files |
+| After **implement** | **Stop** at `review-code`. Do not run **converge** yet. Match `agent-roles/*-checker.md` and `*-reviewer.md` to changed files by Scope (more than one may match). Read the versions that Scope names. Apply Blocking fixes first |
+| After **review-code** | User proceeds, then run **converge**. If tasks were appended, implement then converge again (stop when converged, or after 3 passes). When converged: auto-extracts ADR, consolidates living spec, and cleans transient files |
 
 A single slash command (`/speckit-plan` only, …) does **not** start the chain. `/speckit-checklist` stays optional and is not in the default chain.
 
@@ -191,7 +200,7 @@ New projects pick up the new CLI automatically the next time you run `node bin/n
 2. Skim `specify init --help` and `specify integration install --help` if a major release changed flags
 3. Check that the bundled `speckit` workflow still has these step ids (overlay anchors): `specify`, `review-spec`, `plan`, `review-plan`, `tasks`, `implement`
 4. Smoke-test: `node bin/new-project.mjs --only grok --no-git smoke-app --dir %TEMP%` (or `$TMPDIR`)
-5. In the smoke project, confirm `.specify/workflows/overlays/speckit/chained-sdd.yml` exists and `specify workflow resolve speckit` shows clarify / analyze / converge without the review gates
+5. In the smoke project, confirm `.specify/workflows/overlays/speckit/chained-sdd.yml` exists and `specify workflow resolve speckit` shows clarify / analyze, a `review-code` gate after implement, then converge
 6. Commit launcher/overlay changes if anything in steps 2–5 required an edit
 
 Already-created apps are upgraded **in that repo**. Do not re-run `new-project.mjs --here` as an upgrade path — that runs `specify init --here --force`.
@@ -214,7 +223,7 @@ npx speckit-launch upgrade --dir <path>    # target project (default: cwd)
 - `scripts/link-agent-skills.mjs` and `scripts/new-worktree.mjs`
 - known files under `.specify/presets/chained-sdd/` (extra files in that directory are kept; this does not rely on `specify preset add`, which skips when the preset is already installed)
 
-It does not run `specify init` or `specify integration install --force`, and it does not rewrite `workflow.yml`, `.specify/templates/`, `.specify/scripts/`, a filled `constitution.md`, `.gitignore`, `.gitattributes`, or `package.json`. Optional starters (`changelog`, `commit-checks`, `shell-encoding`, `commit-push-pr`, hooks, `safety-check`) are copied only when missing. `.agents/AGENTS.md` is updated only between paired `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` markers. A start marker with no end marker is skipped (`pipeline section has no end marker`).
+It does not run `specify init` or `specify integration install --force`, and it does not rewrite `workflow.yml`, `.specify/templates/`, `.specify/scripts/`, a filled `constitution.md`, `.gitignore`, `.gitattributes`, or `package.json`. Optional starters (`changelog`, `commit-checks`, `shell-encoding`, `commit-push-pr`, hooks, `safety-check`) and `agent-roles/react-{reviewer,implementer,checker}.md` are copied only when missing. `.agents/AGENTS.md` is updated only between paired `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` markers. A start marker with no end marker is skipped (`pipeline section has no end marker`).
 
 Specify CLI upgrades in that app are still separate:
 
@@ -237,7 +246,7 @@ node scripts/link-agent-skills.mjs
 
 ## Multi-Agent / Multi-Branch Parallelism (Git Worktree)
 
-Spec Kit's chained SDD pipeline (`specify → clarify → plan → tasks → analyze → implement → converge`) produces artifacts scoped strictly inside `specs/<feature>/`, without global locks.
+Spec Kit's chained SDD pipeline (`specify → clarify → plan → tasks → analyze → implement`, then a `review-code` pause before `converge`) produces artifacts scoped strictly inside `specs/<feature>/`, without global locks.
 
 To have multiple AI agents work on separate feature branches concurrently, **do not switch branches inside the same working directory** (which causes Git state collisions and feature anchoring mismatches). Instead, use Git Worktrees:
 

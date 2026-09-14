@@ -117,6 +117,14 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`，外加常見文字檔與二進位宣告），讓新專案在 Windows／macOS／Linux 都維持 LF
 12. 若尚未存在，把可選流程規則寫進 `.agents/rules/`（所有 agent），並為 Cursor 產生 `alwaysApply` 鏡像 `.cursor/rules/*.mdc`。同時複製 `commit-push-pr` skill 與通用危險指令 hook。`{{GITHUB_REPO}}` 與三個檢查指令填在 `.agents/rules/`。純文件 CI 略過片段在 `templates/github/ci-paths-ignore.snippet.yml`，只貼進 `on.push`；不要加到 `pull_request`，PR tip 也不要加 `[skip ci]`。
+13. 若尚未存在，把 React / Next.js 角色提示複製到 `agent-roles/react-reviewer.md`、`agent-roles/react-implementer.md`、`agent-roles/react-checker.md`。不綁某一個 agent。每個檔案自己宣告 Scope。implement 之後依**這次改到的檔案**對 checker 與 reviewer（混合 diff 全部都跑）。版本不決定角色：對上之後讀 Scope 指定的版本，再依那個版本判斷。審查與實作跟專案既有的狀態管理與樣式函式庫。checker 跑專案自己的型別檢查、lint 與測試（Biome、Oxlint、ESLint，或專案實際設定的工具）。把檔案內容送進你指派該角色的 pane 即可，例如：
+
+```bash
+herdr agent start --type agy --pane react-reviewer
+herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
+```
+
+`--type` 可以是任何 agent。pane 名稱是角色，不是產品。
 
 它 **不會** 複製別的專案的產品憲章、CHANGELOG 條目、deploy 指令或 CI job 本體。啟動完成後，在新專案跑 `/speckit-constitution`（保留已種入的流程原則；其餘填 **這個** 產品自己的）。
 
@@ -127,7 +135,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 這個啟動器疊上實際專案在用的 **完整串接**：
 
 ```
-specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
+specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → review-code [gate] → converge
 ```
 
 | 步驟 | 預設行為 |
@@ -138,7 +146,8 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 | **tasks** 之後 | 一定跑 **analyze** |
 | **analyze** 之後 | 稽核報告寫入 `analysis.md`。`review-analyze` 閘門暫停供檢視修復項目。零發現或只有 LOW → **繼續** implement |
 | **implement** 期間 | Step 2.5 自動將 `analysis.md` 勾選的修復套用到規格與任務中再開始實作 |
-| **implement** 之後 | 跑 **converge**。若有補上 tasks，再 implement 然後 converge（最多 3 輪）。收斂完成時：自動萃取 ADR、扁平化活規格，並清理暫態檔案 |
+| **implement** 之後 | 停在 `review-code`。先不要跑 **converge**。依 Scope 把 `agent-roles/*-checker.md` 與 `*-reviewer.md` 對到這次改到的檔案（可同時多個）。先讀 Scope 指定的版本。先改 Blocking |
+| **review-code** 之後 | 使用者確認後才跑 **converge**。若有補上 tasks，再 implement 然後 converge（最多 3 輪）。收斂完成時：自動萃取 ADR、扁平化活規格，並清理暫態檔案 |
 
 單一 slash command（只跑 `/speckit-plan` 等）**不會**啟動整條鏈。`/speckit-checklist` 維持可選，不在預設鏈裡。
 
@@ -191,7 +200,7 @@ Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解�
 2. 大版本若改旗標，掃過 `specify init --help` 與 `specify integration install --help`
 3. 確認 bundled `speckit` workflow 仍有這些 step id（overlay 錨點）：`specify`、`review-spec`、`plan`、`review-plan`、`tasks`、`implement`
 4. 煙霧測試：`node bin/new-project.mjs --only grok --no-git smoke-app --dir %TEMP%`（或 `$TMPDIR`）
-5. 在測試專案確認 `.specify/workflows/overlays/speckit/chained-sdd.yml` 存在，且 `specify workflow resolve speckit` 顯示 clarify／analyze／converge、沒有 review gate
+5. 在測試專案確認 `.specify/workflows/overlays/speckit/chained-sdd.yml` 存在，且 `specify workflow resolve speckit` 顯示 clarify／analyze、implement 之後的 `review-code` 閘門，然後才是 converge
 6. 若步驟 2–5 需要改啟動器或 overlay，再 commit
 
 已經建好的 app 在 **那個 repo** 升級。不要把 `new-project.mjs --here` 當升級路徑——那會跑 `specify init --here --force`。
@@ -214,7 +223,7 @@ npx speckit-launch upgrade --dir <path>    # 目標專案（預設目前目錄�
 - `scripts/link-agent-skills.mjs` 與 `scripts/new-worktree.mjs`
 - `.specify/presets/chained-sdd/` 裡啟動器已知的檔（該目錄多出來的檔保留；不靠 `specify preset add`，已安裝時它會 skip）
 
-它不會跑 `specify init` 或 `specify integration install --force`，也不會重寫 `workflow.yml`、`.specify/templates/`、`.specify/scripts/`、已填的 `constitution.md`、`.gitignore`、`.gitattributes`、`package.json`。可選範本（`changelog`、`commit-checks`、`shell-encoding`、`commit-push-pr`、hooks、`safety-check`）只有缺檔才複製。`.agents/AGENTS.md` 只在成對標記 `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` 中間替換。只有開頭、沒有結尾標記時 skip（`pipeline section has no end marker`）。
+它不會跑 `specify init` 或 `specify integration install --force`，也不會重寫 `workflow.yml`、`.specify/templates/`、`.specify/scripts/`、已填的 `constitution.md`、`.gitignore`、`.gitattributes`、`package.json`。可選範本（`changelog`、`commit-checks`、`shell-encoding`、`commit-push-pr`、hooks、`safety-check`）與 `agent-roles/react-{reviewer,implementer,checker}.md` 只有缺檔才複製。`.agents/AGENTS.md` 只在成對標記 `<!-- speckit-launch:pipeline -->` … `<!-- /speckit-launch:pipeline -->` 中間替換。只有開頭、沒有結尾標記時 skip（`pipeline section has no end marker`）。
 
 Specify CLI 本身的升級仍在該 app 另外做：
 
@@ -237,7 +246,7 @@ node scripts/link-agent-skills.mjs
 
 ## 多 Agent / 多分支並行指南 (Git Worktree)
 
-Spec Kit 的連鎖 SDD 流程（`specify → clarify → plan → tasks → analyze → implement → converge`）產物完全相對隔離在 `specs/<feature>/` 中，各階段無全域狀態鎖定。
+Spec Kit 的連鎖 SDD 流程（`specify → clarify → plan → tasks → analyze → implement`，然後在 `converge` 前有 `review-code` 暫停）產物完全相對隔離在 `specs/<feature>/` 中，各階段無全域狀態鎖定。
 
 若要讓多個 AI Agent 同時並行開發多個 Feature 分支，**切勿在同一個工作目錄中切換 branch**（避免 Git 衝突與 Feature 錨定錯亂），請使用 Git Worktree 進行目錄隔離：
 

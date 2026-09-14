@@ -3,7 +3,7 @@
  * Bootstrap a new Spec Kit project with mainstream AI agent integrations,
  * cross-agent skill mounts (canonical copy in .agents/skills), and the
  * chained Spec Kit pipeline (specify → clarify → plan → tasks → analyze →
- * implement → converge; pause after clarify/analyze only when issues remain).
+ * implement; stop for code review before converge).
  *
  * Usage:
  *   node bin/new-project.mjs <name>              # create ./<name> under cwd
@@ -141,6 +141,7 @@ Fails if the target has no .specify/ (not a Spec Kit project).
 Supported Spec Kit: >=1.0.0 <2.0.0 (last smoke-tested 1.0.4).
 Below 1.0.0 or at/above 2.0.0, init and upgrade fail.
 A newer 1.x than 1.0.4 warns and continues.
+Optional process starters and agent-roles/*.md are copied only when missing.
 Upgrade reads .specify/init-options.json speckit_version; missing specify on PATH warns and continues.
 Does not run specify init, does not seed constitution, and does not overwrite
 optional process starters that already exist.`);
@@ -731,6 +732,8 @@ const PROCESS_RULES = [
   { name: "shell-encoding", description: "Windows PowerShell UTF-8 writing rules (avoid mojibake in CHANGELOG and docs)" },
 ];
 
+const AGENT_ROLE_FILES = ["react-reviewer.md", "react-implementer.md", "react-checker.md"];
+
 function cursorAlwaysApplyRule(description, body) {
   return `---\ndescription: ${description}\nalwaysApply: true\n---\n\n${body.trim()}\n`;
 }
@@ -792,8 +795,10 @@ const AGENT_PIPELINE_POINTER = `## Spec Kit chained pipeline
 Canonical rules: \`.agents/AGENTS.md\`. Full run:
 
 \`\`\`
-specify → clarify → plan → tasks → analyze → implement → converge
+specify → clarify → plan → tasks → analyze → implement
 \`\`\`
+
+Stop after implement for code review. Do not start converge until Blocking fixes are done.
 
 Pause after clarify/analyze only when issues remain. A single slash command does not start the chain.
 `;
@@ -990,6 +995,15 @@ function layer2OptionalFiles(projectRoot) {
       ),
     );
   }
+
+  for (const name of AGENT_ROLE_FILES) {
+    const src = join(TEMPLATES, "agent-roles", name);
+    if (!existsSync(src)) continue;
+    const relPath = `agent-roles/${name}`;
+    actions.push(
+      planAddIfMissing(relPath, join(projectRoot, "agent-roles", name), readText(src)),
+    );
+  }
   return actions;
 }
 
@@ -1074,7 +1088,7 @@ function registerOverlayOrCopy(projectRoot, action, runSpecify) {
   );
   if (added && added.status === 0) {
     console.log(
-      "installed speckit workflow overlay chained-sdd (clarify/analyze/converge; no fixed review gates)",
+      "installed speckit workflow overlay chained-sdd (clarify/analyze/converge; review-code gate before converge)",
     );
     return;
   }
@@ -1276,7 +1290,7 @@ All workflow policies, role definitions, and capability tier routing are defined
 👉 **[.agents/AGENTS.md](.agents/AGENTS.md)**
 
 ## Quick Reference
-- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement → converge\`.
+- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement\`. Stop for code review before \`/speckit-converge\`.
 - **Principles**: Spec-first. Always specify requirements in \`specs/*/spec.md\` before coding.
 - **Autonomy**: Day-to-day implementation is autonomous; pause after clarify/analyze only when issues remain.
 `;
@@ -1295,7 +1309,7 @@ Primary rules, role definitions, and workflow pipeline are documented in:
 👉 **.agents/AGENTS.md**
 
 ## Quick Reference
-- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement → converge\`
+- **Workflow Pipeline**: \`specify → clarify → plan → tasks → analyze → implement\`. Stop for code review before \`/speckit-converge\`.
 - **Detailed Rules**: See \`.cursor/rules/speckit-pipeline.mdc\` and \`.agents/AGENTS.md\`.
 - **Principles**: Spec-first. Keep transient execution artifacts in \`specs/<feature>/\` until converged.
 `;
@@ -1314,9 +1328,9 @@ Primary rules, role definitions, and workflow pipeline are documented in:
 See [.agents/AGENTS.md](../.agents/AGENTS.md) for full architecture guidelines and Spec-Driven Development pipelines.
 
 ## Spec Kit Chained Pipeline
-\`specify → clarify → plan → tasks → analyze → implement → converge\`
+\`specify → clarify → plan → tasks → analyze → implement\`
 
-Follow spec-first principles and pause after clarify/analyze only when issues remain.
+Follow spec-first principles and pause after clarify/analyze only when issues remain. After implement, stop for code review. Do not start converge until Blocking fixes are done.
 `;
       writeText(copilotMd, content);
       console.log("wrote .github/copilot-instructions.md (bridge to .agents/AGENTS.md)");
@@ -1512,8 +1526,9 @@ Installed integrations:
   ${keys.join(", ")}
 ${agentTip.trimEnd()}
 
-Chained Spec Kit run (pause after clarify/analyze only when issues remain):
-  specify → clarify → plan → tasks → analyze → implement → converge
+Chained Spec Kit run (pause after clarify/analyze only when issues remain; stop after implement for code review):
+  specify → clarify → plan → tasks → analyze → implement
+  then /speckit-converge only after Blocking fixes
 
 Next steps:
   1. Open the project in your primary agent (${primaryIntegration})
@@ -1523,6 +1538,13 @@ Next steps:
 
 After clone on another machine:
   node scripts/link-agent-skills.mjs
+
+Agent roles (not bound to one agent; any --type). Match by each file's Scope; then read the versions that Scope names:
+  agent-roles/react-reviewer.md
+  agent-roles/react-implementer.md
+  agent-roles/react-checker.md
+  herdr agent start --type <agent> --pane react-reviewer
+  herdr send-prompt react-reviewer "$(cat agent-roles/react-reviewer.md)"
 
 Parallel multi-branch development (Git Worktree):
   node scripts/new-worktree.mjs <branch-name>

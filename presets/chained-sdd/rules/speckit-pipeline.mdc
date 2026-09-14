@@ -1,5 +1,5 @@
 ---
-description: Spec Kit chained pipeline — pause after clarify/analyze only when issues remain
+description: Spec Kit chained pipeline — pause after clarify/analyze only when issues remain; stop after implement before converge
 alwaysApply: true
 ---
 
@@ -8,8 +8,10 @@ alwaysApply: true
 When the user starts a **new feature** or a **full Spec Kit run** (`/speckit-specify`, "run speckit", "build this feature"), chain commands in this order. Do **not** skip clarify or analyze.
 
 ```
-specify → clarify → plan → tasks → analyze → implement → converge
+specify → clarify → plan → tasks → analyze → implement
 ```
+
+Stop after implement. Do **not** start `/speckit-converge` until code review and Blocking fixes are done.
 
 A **single** slash command (`/speckit-plan` only, `/speckit-analyze` only, …) does **not** start the chain. After that command finishes, still apply the pause rules below if the next chained step would otherwise auto-start.
 
@@ -43,8 +45,11 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
 - `specify` → always run `clarify` next in a chained run (do not jump to plan).
 - `plan` → always run `tasks` next in a chained run.
 - `tasks` → always run `analyze` next in a chained run.
-- `implement` → run `converge` when the current task list is done.
-- `converge` → if tasks were appended, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
+- `implement` → **stop**. Do **not** start `/speckit-converge`. Code review of the diff happens first so a later converge does not seal ADR and the living spec from pre-review code.
+  - Match roles to **changed files**, not to the project as a whole. For each `agent-roles/*-checker.md` and `agent-roles/*-reviewer.md`, read its Scope. If any changed file matches, that role applies to those files only. A mixed diff (for example React and .NET) runs every match. Do not pick a winner. Files no role claims stay unassigned — say so, do not invent a role.
+  - Versions do **not** choose the role. After a role matches, read the versions its Scope names (the manifest next to those files: `package.json`, `*.csproj`, and the lockfile or `TargetFramework` when present). Prefer the resolved version over a range. Judge APIs against that version. Do not assume a default major, and do not look for a version-specific role file.
+  - Do not auto-start panes. Any agent may load a matched file (`herdr send-prompt <pane> "$(cat agent-roles/<file>)"`). Checker before reviewer for that role's files. Apply Blocking first. Suggestion and Nit stay listed unless the user asks for them.
+- `converge` → user runs `/speckit-converge` only after that review. If it appends tasks, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
 - **After `converge` succeeds with zero findings (Converged)**:
   - **Auto-Extract ADR**: Automatically extract architectural decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
   - **Remove Transient Artifacts & Flatten Living Spec**: Once ADR extraction is complete, remove transient execution artifacts (`tasks.md`, `checklists/`, `analysis.md`). Synthesize `spec.md`, `data-model.md`, and `contracts/` into a single high-signal document `specs/<feature-id>-<name>.md` optimized for future AI context retrieval, then remove the transient `specs/<feature-dir>/` folder.

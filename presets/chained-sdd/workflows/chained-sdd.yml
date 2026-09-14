@@ -4,7 +4,7 @@
 # wiping the chained SDD steps.
 #
 # Official base: specify → review-spec → plan → review-plan → tasks → implement
-# After this overlay: specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge
+# After this overlay: specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → review-code [gate] → converge
 # Gate policy: on_reject: retry allows inspection / re-eval without workflow abort.
 #
 # ==============================================================================
@@ -124,9 +124,22 @@ edits:
   #       args: "{{ inputs.spec }}"
 
   # ----------------------------------------------------------------------------
-  # Step 7: converge (收斂檢查與補全任務)
+  # Step 6b: review-code (程式碼審查閘門；不要在審查前封存 ADR / 活規格)
+  # Match agent-roles/*-checker.md and *-reviewer.md by Scope, not one role for the diff.
+  # Read the versions that Scope names. Do not auto-load panes.
   # ----------------------------------------------------------------------------
   - insert_after: implement
+    step:
+      id: review-code
+      type: gate
+      message: "Implementation stopped. Review the diff before converge seals docs. Match agent-roles/*-checker.md and *-reviewer.md to changed files by each file's Scope (more than one may match). Read the versions that Scope names before reviewing. Apply Blocking fixes first. Proceed only when this code is final."
+      options: [proceed, abort]
+      on_reject: retry
+
+  # ----------------------------------------------------------------------------
+  # Step 7: converge (審查後才收斂；會抽 ADR 並刪掉工作目錄)
+  # ----------------------------------------------------------------------------
+  - insert_after: review-code
     step:
       id: converge
       command: speckit.converge

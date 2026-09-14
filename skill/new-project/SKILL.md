@@ -56,7 +56,7 @@ Tell the user:
 1. Open the project in any of the installed agents
 2. Run `/speckit-constitution` for **this** project's principles (do not copy another project's constitution; keep the seeded pipeline principle)
 3. Then `/speckit-specify` — that starts the chained run:
-   `specify → clarify → plan → tasks → analyze → implement → converge`
+   `specify → clarify → plan → tasks → analyze → implement` (then stop; `/speckit-converge` is manual after code review)
    Unless the project was created with `--no-git`, specify creates and checks out a feature branch first (Spec Kit git extension `before_specify` hook). Pause after clarify/analyze only when issues remain; do not add extra “does this plan look OK?” gates.
 
 ## Do not

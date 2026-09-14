@@ -245,7 +245,7 @@ Append to the **end** of `tasks.md`, per the append contract:
 - On `tasks_appended`: state how many tasks were appended under which phase, and recommend
   running `/speckit-implement` to complete them; note that a follow-up converge
   run will find fewer or no remaining items.
-- On `converged`: report that ADR has been extracted, transient execution artifacts (`tasks.md`, `checklists/`, `analysis.md`) have been removed, and living spec has been consolidated. Recommend proceeding to review / git commit / opening a PR. No further implement pass
+- On `converged`: report that ADR has been extracted, transient execution artifacts (`tasks.md`, `checklists/`, `analysis.md`) have been removed, and living spec has been consolidated. Code review should already be done. Recommend git commit / opening a PR. No further implement pass
   is needed for this feature's specified scope.
 
 ### 9. Check for extension hooks

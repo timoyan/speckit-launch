@@ -3,7 +3,7 @@
 Local Spec Kit preset (not published to a catalog). Bundles the complete **Chained SDD** workflow methodology:
 
 1. **Workflow Overlay (`workflows/chained-sdd.yml`)**:
-   - Chained SDD step graph (`specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → converge`).
+   - Chained SDD step graph (`specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → review-code [gate] → converge`).
    - Non-destructive interactive review gates with `on_reject: retry`.
 2. **Agent Execution Rules (`rules/pipeline-rules.md`, `rules/speckit-pipeline.mdc`)**:
    - `pipeline-rules.md`: Single source of truth for chained SDD execution rules, pause conditions, remediation workflows, and model routing (injected into `.agents/AGENTS.md`).

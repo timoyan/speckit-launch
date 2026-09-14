@@ -64,7 +64,7 @@ function installPreset(targetDir) {
     ".github/copilot-instructions.md",
   ];
   const pointerBlock =
-    "\n\n## Spec Kit chained pipeline\n\nCanonical rules: `.agents/AGENTS.md`.\n\n```\nspecify → clarify → plan → tasks → analyze → implement → converge\n```\n\nPause after clarify/analyze only when issues remain.\n";
+    "\n\n## Spec Kit chained pipeline\n\nCanonical rules: `.agents/AGENTS.md`.\n\n```\nspecify → clarify → plan → tasks → analyze → implement\n```\n\nPause after clarify/analyze only when issues remain. After implement, stop for code review. Do not start converge until Blocking fixes are done.\n";
   for (const doc of agentDocCandidates) {
     const docPath = join(projectRoot, ...doc.split("/"));
     if (existsSync(docPath)) {

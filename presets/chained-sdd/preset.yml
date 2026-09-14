@@ -17,7 +17,7 @@ provides:
     - type: "template"
       name: "constitution-template"
       file: "templates/constitution-pipeline.md"
-      description: "Append Autonomy & Spec Kit pipeline (chained specify → converge, pause after clarify/analyze only when issues remain)"
+      description: "Append Autonomy & Spec Kit pipeline (chained specify through implement, stop for code review before converge; pause after clarify/analyze only when issues remain)"
       strategy: "append"
 
 tags:
