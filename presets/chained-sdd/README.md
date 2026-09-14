@@ -6,7 +6,7 @@ Local Spec Kit preset (not published to a catalog). Bundles the complete **Chain
    - Chained SDD step graph (`specify → clarify → review-clarify [gate] → plan → tasks → analyze → review-analyze [gate] → implement → review-code [gate] → converge`).
    - Non-destructive interactive review gates with `on_reject: retry`.
 2. **Agent Execution Rules (`rules/pipeline-rules.md`, `rules/speckit-pipeline.mdc`)**:
-   - `pipeline-rules.md`: Single source of truth for chained SDD execution rules, pause conditions, remediation workflows, and model routing (injected into `.agents/AGENTS.md`).
+   - `pipeline-rules.md`: Single source of truth for chained SDD execution rules, pause conditions, remediation workflows, model routing, and post-implement `review-code` dispatch to live `agent-roles` (injected into `.agents/AGENTS.md`).
    - `speckit-pipeline.mdc`: Cursor rule format installed to `.cursor/rules/speckit-pipeline.mdc`.
    - Shared process rules (changelog, commit gate, shell encoding) are installed from the launcher `templates/rules/` into `.agents/rules/` for every agent. `.cursor/rules/*.mdc` is only a Cursor `alwaysApply` mirror.
 3. **Autonomy & Spec Kit pipeline principle (`templates/constitution-pipeline.md`)**:

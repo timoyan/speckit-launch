@@ -126,13 +126,15 @@ edits:
   # ----------------------------------------------------------------------------
   # Step 6b: review-code (程式碼審查閘門；不要在審查前封存 ADR / 活規格)
   # Match agent-roles/*-checker.md and *-reviewer.md by Scope, not one role for the diff.
-  # Read the versions that Scope names. Do not auto-load panes.
+  # Read the versions that Scope names. Do not auto-start panes.
+  # If inside Herdr and matching named agents are live, prompt them (checker then reviewer;
+  # implementer only for Blocking). Otherwise apply the matching role files locally.
   # ----------------------------------------------------------------------------
   - insert_after: implement
     step:
       id: review-code
       type: gate
-      message: "Implementation stopped. Review the diff before converge seals docs. Match agent-roles/*-checker.md and *-reviewer.md to changed files by each file's Scope (more than one may match). Read the versions that Scope names before reviewing. Optional: node scripts/start-herdr-roles.mjs --kind <agent>. Apply Blocking fixes first. Proceed only when this code is final."
+      message: "Implementation stopped. Review the diff before converge seals docs. Match agent-roles/*-checker.md and *-reviewer.md to changed files by Scope. If inside Herdr and those named agents are live, prompt them (checker then reviewer; implementer only for Blocking). Do not auto-start panes. Otherwise apply the matching role files locally. Proceed only when this code is final."
       options: [proceed, abort]
       on_reject: retry
 

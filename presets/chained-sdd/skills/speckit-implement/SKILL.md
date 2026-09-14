@@ -227,9 +227,14 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 Report final status with summary of completed work.
 
+## After this command (chained run)
+
+Do **not** start `/speckit-converge`. Follow the review-code rules in `.agents/AGENTS.md` and `.cursor/rules/speckit-pipeline.mdc`: match checkers and reviewers to the diff by Scope, dispatch live Herdr role agents if present (`herdr agent prompt <name> … --wait`), otherwise apply the role files locally, apply Blocking first, then wait for the user to run `/speckit-converge`. Do not auto-start panes.
+
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
+- [ ] Review-code ran (live role agents prompted, or matching role files applied locally). `/speckit-converge` was not started
 - [ ] Completion reported to user with summary of completed work

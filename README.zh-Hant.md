@@ -117,7 +117,7 @@ npm run unlink        # 等同於 npm unlink -g speckit-launch
 10. 把 skill-mount 與本地延伸模組／憑證規則合併進 `.gitignore`
 11. 寫入或合併 `.gitattributes`（`* text=auto eol=lf`，外加常見文字檔與二進位宣告），讓新專案在 Windows／macOS／Linux 都維持 LF
 12. 若尚未存在，把可選流程規則寫進 `.agents/rules/`（所有 agent），並為 Cursor 產生 `alwaysApply` 鏡像 `.cursor/rules/*.mdc`。同時複製 `commit-push-pr` skill 與通用危險指令 hook。`{{GITHUB_REPO}}` 與三個檢查指令填在 `.agents/rules/`。純文件 CI 略過片段在 `templates/github/ci-paths-ignore.snippet.yml`，只貼進 `on.push`；不要加到 `pull_request`，PR tip 也不要加 `[skip ci]`。
-13. 若尚未存在，把 React / Next.js 角色提示複製到 `agent-roles/react-reviewer.md`、`agent-roles/react-implementer.md`、`agent-roles/react-checker.md`。不綁某一個 agent。每個檔案自己宣告 Scope。implement 之後依**這次改到的檔案**對 checker 與 reviewer（混合 diff 全部都跑）。版本不決定角色：對上之後讀 Scope 指定的版本，再依那個版本判斷。審查與實作跟專案既有的狀態管理與樣式函式庫。checker 跑專案自己的型別檢查、lint 與測試（Biome、Oxlint、ESLint，或專案實際設定的工具）。自己啟動（不在 Spec Kit 鏈裡）。一個 session、每個角色檔一個 pane。`--kind` 必填。`--only` 限制要開的檔。已在跑的同名 agent 會跳過。不會依 diff 自動選角色。
+13. 若尚未存在，把 React / Next.js 角色提示複製到 `agent-roles/react-reviewer.md`、`agent-roles/react-implementer.md`、`agent-roles/react-checker.md`。不綁某一個 agent。每個檔案自己宣告 Scope。implement 之後依**這次改到的檔案**對 checker 與 reviewer（混合 diff 全部都跑）。版本不決定角色：對上之後讀 Scope 指定的版本，再依那個版本判斷。審查與實作跟專案既有的狀態管理與樣式函式庫。checker 跑專案自己的型別檢查、lint 與測試（Biome、Oxlint、ESLint，或專案實際設定的工具）。開 pane 仍是手動（`node scripts/start-herdr-roles.mjs --kind <agent>`）。implement 之後，協調者會把活著且對得上 Scope 的 role agent 派工（checker → reviewer → 有 Blocking 才 implementer）。沒有活著的 pane 就自己套用同一份 role 檔。不會自動開 pane，也不會依 diff 自動選要開誰。一個 session、每個角色檔一個 pane。`--kind` 必填。`--only` 限制要開的檔。已在跑的同名 agent 會跳過。
 
 ```bash
 node scripts/start-herdr-roles.mjs --kind agy
@@ -145,7 +145,7 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 | **tasks** 之後 | 一定跑 **analyze** |
 | **analyze** 之後 | 稽核報告寫入 `analysis.md`。`review-analyze` 閘門暫停供檢視修復項目。零發現或只有 LOW → **繼續** implement |
 | **implement** 期間 | Step 2.5 自動將 `analysis.md` 勾選的修復套用到規格與任務中再開始實作 |
-| **implement** 之後 | 停在 `review-code`。先不要跑 **converge**。依 Scope 把 `agent-roles/*-checker.md` 與 `*-reviewer.md` 對到這次改到的檔案（可同時多個）。先讀 Scope 指定的版本。先改 Blocking |
+| **implement** 之後 | 停在 `review-code`。先不要跑 **converge**。依 Scope 把 `agent-roles/*-checker.md` 與 `*-reviewer.md` 對到這次改到的檔案（可同時多個）。先讀 Scope 指定的版本。若在 Herdr 裡且對應名稱的 agent 活著，就 prompt 它們（先 checker 再 reviewer；有 Blocking 才 implementer）。不要自動開 pane。否則自己套用對得上的 role 檔。先改 Blocking |
 | **review-code** 之後 | 使用者確認後才跑 **converge**。若有補上 tasks，再 implement 然後 converge（最多 3 輪）。收斂完成時：自動萃取 ADR、扁平化活規格，並清理暫態檔案 |
 
 單一 slash command（只跑 `/speckit-plan` 等）**不會**啟動整條鏈。`/speckit-checklist` 維持可選，不在預設鏈裡。
@@ -182,7 +182,7 @@ Spec Kit 各階段產物皆實體落盤於 `specs/<feature>/`，階段彼此解�
     - 在 `implement` 與 `converge` 扮演 **Coder**（專注最小 diff 與測試驗證）。
 - **自動化 CLI / 腳本編排**：
   - 在 Spec Kit CLI：透過 `.specify/workflows/overlays/speckit/chained-sdd.yml` 設定。
-  - 在 Herdr / 終端機多工器：透過腳本自動切割窗格並依序派工。
+  - 在 Herdr：implement 之後 prompt 活著且對得上的 `agent-roles` agent。不要自動開 pane。使用者用 `node scripts/start-herdr-roles.mjs` 啟動。
   - 用戶覆寫優先：工作流設定檔中若顯式指定 `model:` 或 `integration:`，以用戶設定為最高優先。
 
 

@@ -209,6 +209,22 @@ test("presets/chained-sdd integrity", () => {
     const content = readFileSync(skillPath, "utf8");
     assert.ok(content.length > 200, `skill ${s} content too short`);
   }
+
+  const pipelineRules = readFileSync(join(presetDir, "rules", "pipeline-rules.md"), "utf8");
+  const pipelineMdc = readFileSync(join(presetDir, "rules", "speckit-pipeline.mdc"), "utf8");
+  const overlay = readFileSync(join(presetDir, "workflows", "chained-sdd.yml"), "utf8");
+  const implementSkill = readFileSync(join(presetDir, "skills", "speckit-implement", "SKILL.md"), "utf8");
+  for (const [label, content] of [
+    ["pipeline-rules.md", pipelineRules],
+    ["speckit-pipeline.mdc", pipelineMdc],
+  ]) {
+    assert.match(content, /herdr agent prompt/, `${label} must dispatch live Herdr role agents`);
+    assert.match(content, /Do not auto-start panes/, `${label} must not auto-start panes`);
+    assert.match(content, /HERDR_ENV=1/, `${label} must gate dispatch on HERDR_ENV`);
+  }
+  assert.match(overlay, /prompt them \(checker then reviewer/, "review-code gate must dispatch live roles");
+  assert.match(overlay, /Do not auto-start panes/, "review-code gate must not auto-start panes");
+  assert.match(implementSkill, /Review-code ran/, "speckit-implement must require review-code after tasks");
 });
 
 test("presets/chained-sdd/install.mjs guards against non-speckit directory", () => {

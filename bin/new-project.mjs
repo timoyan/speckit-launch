@@ -798,7 +798,7 @@ Canonical rules: \`.agents/AGENTS.md\`. Full run:
 specify → clarify → plan → tasks → analyze → implement
 \`\`\`
 
-Stop after implement for code review. Do not start converge until Blocking fixes are done.
+Stop after implement for code review. If matching role agents are live in Herdr, prompt them; do not auto-start panes. Do not start converge until Blocking fixes are done.
 
 Pause after clarify/analyze only when issues remain. A single slash command does not start the chain.
 `;
@@ -1532,6 +1532,7 @@ ${agentTip.trimEnd()}
 
 Chained Spec Kit run (pause after clarify/analyze only when issues remain; stop after implement for code review):
   specify → clarify → plan → tasks → analyze → implement
+  then review-code (prompt live agent-roles if present; do not auto-start panes)
   then /speckit-converge only after Blocking fixes
 
 Next steps:
@@ -1547,9 +1548,11 @@ Agent roles (not bound to one agent; any --type). Match by each file's Scope; th
   agent-roles/react-reviewer.md
   agent-roles/react-implementer.md
   agent-roles/react-checker.md
+  Start panes yourself (not auto-started after implement):
   node scripts/start-herdr-roles.mjs --kind <agent>
   node scripts/start-herdr-roles.mjs --kind <agent> --only react-checker,react-reviewer
   herdr session attach speckit-<repo>
+  After implement, live matching names are prompted (checker then reviewer; implementer only for Blocking).
 
 Parallel multi-branch development (Git Worktree):
   node scripts/new-worktree.mjs <branch-name>

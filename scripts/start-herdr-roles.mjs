@@ -65,11 +65,11 @@ roles from the git diff. Re-running skips a pane whose agent name is already liv
 Options:
   --kind <agent>     Required. herdr agent kind (agy, claude, cursor, ...)
   --only a,b         Role file stems to start. Default: every agent-roles/*.md
-  --session <name>   Named session (default: speckit-<repo>)
+  --session <name>   Named session. Default outside Herdr: speckit-<repo>. Inside a pane: the current session.
   --dry-run          Print the plan. Do not call herdr
   -h, --help         Show this help
 
-After it returns, attach with:
+After it returns, from a terminal that is not already inside Herdr:
   herdr session attach <session>
 `);
 }
@@ -113,8 +113,12 @@ function parseJson(text) {
   }
 }
 
+function herdrArgs(session, args) {
+  return session ? ["--session", session, ...args] : args;
+}
+
 function herdr(session, args, { allowFail = false } = {}) {
-  const res = spawnSync("herdr", ["--session", session, ...args], {
+  const res = spawnSync("herdr", herdrArgs(session, args), {
     encoding: "utf8",
     windowsHide: true,
   });
@@ -139,7 +143,7 @@ function ensureServer(session) {
   const listed = herdr(session, ["workspace", "list"], { allowFail: true });
   if (listed.ok) return;
   if (listed.code !== "server_not_running") die(listed.message);
-  const child = spawn("herdr", ["--session", session, "server"], {
+  const child = spawn("herdr", session ? ["--session", session, "server"] : ["server"], {
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -248,8 +252,13 @@ if (!opts.kind) {
 }
 
 const roles = listRoles(opts.only);
-const session = opts.session || sessionNameFromRepo(basename(root));
-const label = `roles-${sessionNameFromRepo(basename(root)).replace(/^speckit-/, "")}`;
+const insideHerdr = process.env.HERDR_ENV === "1";
+const currentSession = process.env.HERDR_SESSION || "default";
+const namedDefault = sessionNameFromRepo(basename(root));
+const session = opts.session || (insideHerdr ? currentSession : namedDefault);
+const inherited = insideHerdr && !opts.session && session === "default";
+const herdrSession = inherited ? "" : session;
+const label = `roles-${namedDefault.replace(/^speckit-/, "")}`;
 
 if (opts.dryRun) {
   console.log(`session: ${session}`);
@@ -261,24 +270,37 @@ if (opts.dryRun) {
   process.exit(0);
 }
 
-ensureServer(session);
-const workspaceId = ensureWorkspace(session, label);
+ensureServer(herdrSession);
+const workspaceId = ensureWorkspace(herdrSession, label);
 const started = [];
 const skipped = [];
 
 for (const role of roles) {
-  const live = agentRecords(session);
+  const live = agentRecords(herdrSession);
   if (live.some((agent) => agent.name === role.name)) {
     skipped.push(role.name);
     console.log(`skip ${role.name} (already running)`);
     continue;
   }
-  const panes = panesIn(session, workspaceId);
-  role.paneId = claimPane(session, workspaceId, role.name, panes.at(-1)?.pane_id);
-  startAgent(session, role, opts.kind);
-  sendPrompt(session, role);
+  const panes = panesIn(herdrSession, workspaceId);
+  role.paneId = claimPane(herdrSession, workspaceId, role.name, panes.at(-1)?.pane_id);
+  startAgent(herdrSession, role, opts.kind);
+  sendPrompt(herdrSession, role);
   started.push(role.name);
   console.log(`started ${role.name} in ${role.paneId}`);
+}
+
+const sameSession = insideHerdr && (opts.session ? opts.session === currentSession : true);
+let attach = "";
+if (sameSession) {
+  attach = "Panes are in this Herdr session. Use the sidebar. Do not run herdr session attach from this pane.";
+} else if (insideHerdr) {
+  attach = `This pane is already inside Herdr, so nested attach is blocked.
+Detach with Ctrl+B then q, open a normal terminal, then:
+  herdr session attach ${session}`;
+} else {
+  attach = `Attach:
+  herdr session attach ${session}`;
 }
 
 console.log(`
@@ -286,6 +308,5 @@ Session: ${session}
 Started: ${started.join(", ") || "(none)"}
 Skipped: ${skipped.join(", ") || "(none)"}
 
-Attach:
-  herdr session attach ${session}
+${attach}
 `);

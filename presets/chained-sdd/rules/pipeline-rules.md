@@ -41,9 +41,12 @@ Analyze writes a structured report to `specs/<feature>/analysis.md` with an acti
 - `plan` → always run `tasks` next in a chained run.
 - `tasks` → always run `analyze` next in a chained run.
 - `implement` → **stop**. Do **not** start `/speckit-converge`. Code review of the diff happens first so a later converge does not seal ADR and the living spec from pre-review code.
+  - The coordinator that ran implement keeps `specify` through `implement`. Role panes do not run those stages. `agent-roles/*-implementer.md` does not write the first implementation; it only applies Blocking items after review.
   - Match roles to **changed files**, not to the project as a whole. For each `agent-roles/*-checker.md` and `agent-roles/*-reviewer.md`, read its Scope. If any changed file matches, that role applies to those files only. A mixed diff (for example React and .NET) runs every match. Do not pick a winner. Files no role claims stay unassigned — say so, do not invent a role.
   - Versions do **not** choose the role. After a role matches, read the versions its Scope names (the manifest next to those files: `package.json`, `*.csproj`, and the lockfile or `TargetFramework` when present). Prefer the resolved version over a range. Judge APIs against that version. Do not assume a default major, and do not look for a version-specific role file.
-  - Do not auto-start panes. The user starts them with `node scripts/start-herdr-roles.mjs --kind <agent>` (optional `--only`). That command does not pick roles from the diff. Checker before reviewer for that role's files. Apply Blocking first. Suggestion and Nit stay listed unless the user asks for them.
+  - Do not auto-start panes. The user starts them with `node scripts/start-herdr-roles.mjs --kind <agent>` (optional `--only`). That command does not pick roles from the diff.
+  - After implement, for each matching role family, run checker, then reviewer, then the matching `*-implementer` only when the reviewer reported Blocking. If this agent is inside Herdr (`HERDR_ENV=1`) and a live agent whose name equals that role file stem is `idle` or `done`, dispatch with `herdr agent prompt <name> "<task>" --wait`. This post-implement prompt is authorized even if the user did not say "Herdr". If this agent is not inside Herdr, or that named agent is not live, do not start a pane and do not control another session — apply that role file yourself. Say which roles were dispatched and which ran locally.
+  - Apply Blocking first. Suggestion and Nit stay listed unless the user asks for them. Do not prompt role agents during specify / clarify / plan / tasks / analyze / the first implement.
 - `converge` → user runs `/speckit-converge` only after that review. If it appends tasks, run `implement` then `converge` again. Stop when converged, or after 3 converge passes.
 - **After `converge` succeeds with zero findings (Converged)**:
   - **Auto-Extract ADR**: Automatically extract architectural decisions from `plan.md` / `research.md` into `docs/adr/<feature-id>-<title>.md`.
@@ -75,5 +78,5 @@ Match the model tier to each stage for optimal cost, speed, and accuracy across 
     - Act as **Coder** during `implement` and `converge` (focus on minimal diffs and running tests).
 - **Automated CLI / Workflow Orchestration**:
   - In Spec Kit CLI: configured via `.specify/workflows/overlays/speckit/chained-sdd.yml`.
-  - In Herdr / Terminal Multiplexers: scripts can split panes and assign roles sequentially or in parallel.
+  - In Herdr: after implement, prompt live matching `agent-roles` agents as above. Do not auto-start panes. The user starts them with `node scripts/start-herdr-roles.mjs`.
   - User override priority: explicit `model:` or `integration:` settings in workflow files take strict precedence.

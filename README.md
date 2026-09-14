@@ -117,7 +117,7 @@ Named projects are created under the **current working directory** unless `--dir
 10. Merges skill-mount rules and local extension/credential patterns into `.gitignore`
 11. Writes or merges `.gitattributes` (`* text=auto eol=lf`, plus explicit text/binary hints) so generated projects keep LF on Windows / macOS / Linux
 12. If missing, copies optional process starters into `.agents/rules/` (every agent) and a Cursor `alwaysApply` mirror under `.cursor/rules/`. Also copies the `commit-push-pr` skill and a generic dangerous-command hook. Fill `{{GITHUB_REPO}}` and the three commit-check commands in `.agents/rules/`. A docs-only CI ignore snippet lives at `templates/github/ci-paths-ignore.snippet.yml` — paste it under `on.push` only; do not put it on `pull_request`, and do not add `[skip ci]` to a PR tip.
-13. If missing, copies React / Next.js role prompts to `agent-roles/react-reviewer.md`, `agent-roles/react-implementer.md`, and `agent-roles/react-checker.md`. They are not tied to a particular agent. Each file declares a Scope. After implement, match checkers and reviewers to **changed files** (a mixed diff runs every match). Versions do not choose the role: after a match, read the versions that Scope names and judge against those. Review and implement follow that project's state and CSS libraries. The checker runs the project's own typecheck, lint, and test commands (Biome, Oxlint, ESLint, or whatever is configured). Start them yourself (this is not part of the Spec Kit chain). One session, one pane per role file. `--kind` is required. `--only` limits which files start. Existing live agent names are skipped. This does not pick roles from the diff.
+13. If missing, copies React / Next.js role prompts to `agent-roles/react-reviewer.md`, `agent-roles/react-implementer.md`, and `agent-roles/react-checker.md`. They are not tied to a particular agent. Each file declares a Scope. After implement, match checkers and reviewers to **changed files** (a mixed diff runs every match). Versions do not choose the role: after a match, read the versions that Scope names and judge against those. Review and implement follow that project's state and CSS libraries. The checker runs the project's own typecheck, lint, and test commands (Biome, Oxlint, ESLint, or whatever is configured). Starting panes is still manual (`node scripts/start-herdr-roles.mjs --kind <agent>`). After implement, the coordinator dispatches to live matching role agents (checker → reviewer → implementer for Blocking). If no live pane, it applies the role files itself. It does not auto-start panes and does not pick roles from the diff. One session, one pane per role file. `--kind` is required. `--only` limits which files start. Existing live agent names are skipped.
 
 ```bash
 node scripts/start-herdr-roles.mjs --kind agy
@@ -145,7 +145,7 @@ specify → clarify → review-clarify [gate] → plan → tasks → analyze →
 | After **tasks** | Always run **analyze** |
 | After **analyze** | Analysis report written to `analysis.md`. `review-analyze` pauses for checklist inspection. Zero findings or only LOW → **continue to implement** |
 | During **implement** | Step 2.5 auto-applies checked remediations from `analysis.md` before executing tasks |
-| After **implement** | **Stop** at `review-code`. Do not run **converge** yet. Match `agent-roles/*-checker.md` and `*-reviewer.md` to changed files by Scope (more than one may match). Read the versions that Scope names. Apply Blocking fixes first |
+| After **implement** | **Stop** at `review-code`. Do not run **converge** yet. Match `agent-roles/*-checker.md` and `*-reviewer.md` to changed files by Scope (more than one may match). Read the versions that Scope names. If inside Herdr and those named agents are live, prompt them (checker then reviewer; implementer only for Blocking). Do not auto-start panes. Otherwise apply the matching role files locally. Apply Blocking first |
 | After **review-code** | User proceeds, then run **converge**. If tasks were appended, implement then converge again (stop when converged, or after 3 passes). When converged: auto-extracts ADR, consolidates living spec, and cleans transient files |
 
 A single slash command (`/speckit-plan` only, …) does **not** start the chain. `/speckit-checklist` stays optional and is not in the default chain.
@@ -182,7 +182,7 @@ Because Spec Kit decouples stages via disk artifacts in `specs/<feature>/`, you 
     - Act as **Coder** during `implement` and `converge` (focus on minimal diffs and running tests).
 - **Automated CLI / Workflow Orchestration**:
   - In Spec Kit CLI: configured via `.specify/workflows/overlays/speckit/chained-sdd.yml`.
-  - In Herdr / Terminal Multiplexers: scripts can split panes and assign roles sequentially or in parallel.
+  - In Herdr: after implement, prompt live matching `agent-roles` agents. Do not auto-start panes. The user starts them with `node scripts/start-herdr-roles.mjs`.
   - User override priority: explicit `model:` or `integration:` settings in workflow files take strict precedence.
 
 
