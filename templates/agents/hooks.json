@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/scripts/safety-check.cjs"
+            "command": "node scripts/safety-check.cjs"
           }
         ]
       }
